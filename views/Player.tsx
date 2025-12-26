@@ -177,9 +177,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         const parsedEpisodes = parsePlayUrl(data.vod_play_url || '');
         setPlayList(parsedEpisodes);
         if (parsedEpisodes.length > 0) {
-            // Check if we can resume a specific episode based on history?
-            // For now, simpler to start from episode 1 or default, unless we store episode index in history (todo for future)
-            // Current storage only stores 'currentTime' for the movie ID, not specific episode URL.
             setCurrentUrl(parsedEpisodes[0].url);
         }
       }
@@ -193,18 +190,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
   // 2. Initialize Player when URL changes
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
+    let isMounted = true;
 
     const initPlayer = async () => {
-        // Cleanup previous
-        if (dpRef.current) {
-            playbackRateRef.current = dpRef.current.video.playbackRate; // Save speed
-            dpRef.current.destroy();
-            dpRef.current = null;
-        }
+        // Clear blob URL if it exists from previous run
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
             blobUrlRef.current = null;
         }
+        
         setCleanStatus('');
 
         let finalUrl = currentUrl;
@@ -214,6 +208,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             try {
                 setCleanStatus('正在智能分析媒体流...');
                 const result = await fetchAndCleanM3u8(currentUrl);
+                if (!isMounted) return;
+
                 if (result.removedCount > 0) {
                     const blob = new Blob([result.content], { type: 'application/vnd.apple.mpegurl' });
                     finalUrl = URL.createObjectURL(blob);
@@ -223,10 +219,13 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                     setCleanStatus(''); // Clear if no cleaning needed
                 }
             } catch (e) {
+                if (!isMounted) return;
                 console.warn('Cleaning skipped:', e);
                 setCleanStatus('');
             }
         }
+
+        if (!isMounted) return;
 
         // Init DPlayer
         const dp = new window.DPlayer({
@@ -246,7 +245,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                             hls.attachMedia(video);
                             hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
                                 // Restore history time on first load (usually triggered by user click)
-                                // If autoplaying next episode, historyTimeRef should be 0.
                                 if (historyTimeRef.current > 0) {
                                     video.currentTime = historyTimeRef.current;
                                 }
@@ -264,10 +262,22 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
         dpRef.current = dp;
 
-        // Events
-        dp.on('canplay', () => {
-             // Restore Speed
+        // --- Event Listeners ---
+
+        // Restore playback rate as early as possible (loadedmetadata often fires before canplay)
+        dp.on('loadedmetadata', () => {
              if (playbackRateRef.current !== 1) {
+                 dp.video.playbackRate = playbackRateRef.current;
+                 // Force UI update if DPlayer doesn't auto-detect
+                 if (dp.controller && dp.controller.updateSpeed) {
+                     dp.controller.updateSpeed(playbackRateRef.current);
+                 }
+             }
+        });
+
+        dp.on('canplay', () => {
+             // Backup restore in case loadedmetadata missed it
+             if (Math.abs(dp.video.playbackRate - playbackRateRef.current) > 0.1) {
                  dp.video.playbackRate = playbackRateRef.current;
              }
              // Fallback seek if HLS event missed it
@@ -282,8 +292,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             }
         });
 
+        // IMPORTANT: Keep track of playback rate continuously
         dp.on('ratechange', () => {
-            playbackRateRef.current = dp.video.playbackRate;
+            if (dp.video) {
+                playbackRateRef.current = dp.video.playbackRate;
+            }
         });
 
         // Auto Next Episode
@@ -307,11 +320,14 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     initPlayer();
 
     return () => {
+        isMounted = false;
         if (dpRef.current) {
             dpRef.current.destroy();
+            dpRef.current = null;
         }
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
         }
     };
   }, [currentUrl, movieId]);
