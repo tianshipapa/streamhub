@@ -144,6 +144,21 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
   const dpRef = useRef<any>(null);
   const historyTimeRef = useRef<number>(0);
   const blobUrlRef = useRef<string | null>(null);
+  const playbackRateRef = useRef<number>(1);
+  const playListRef = useRef<{name: string, url: string}[]>([]);
+
+  // Sync playlist ref for event callbacks
+  useEffect(() => {
+    playListRef.current = playList;
+  }, [playList]);
+
+  // Auto-hide clean status
+  useEffect(() => {
+    if (cleanStatus) {
+        const timer = setTimeout(() => setCleanStatus(''), 5000);
+        return () => clearTimeout(timer);
+    }
+  }, [cleanStatus]);
 
   // 1. Fetch Movie Details
   useEffect(() => {
@@ -162,6 +177,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         const parsedEpisodes = parsePlayUrl(data.vod_play_url || '');
         setPlayList(parsedEpisodes);
         if (parsedEpisodes.length > 0) {
+            // Check if we can resume a specific episode based on history?
+            // For now, simpler to start from episode 1 or default, unless we store episode index in history (todo for future)
+            // Current storage only stores 'currentTime' for the movie ID, not specific episode URL.
             setCurrentUrl(parsedEpisodes[0].url);
         }
       }
@@ -179,6 +197,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     const initPlayer = async () => {
         // Cleanup previous
         if (dpRef.current) {
+            playbackRateRef.current = dpRef.current.video.playbackRate; // Save speed
             dpRef.current.destroy();
             dpRef.current = null;
         }
@@ -201,7 +220,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                     blobUrlRef.current = finalUrl;
                     setCleanStatus(`✅ 净化成功: ${result.log}`);
                 } else {
-                    setCleanStatus('');
+                    setCleanStatus(''); // Clear if no cleaning needed
                 }
             } catch (e) {
                 console.warn('Cleaning skipped:', e);
@@ -215,6 +234,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             theme: '#00ccff',
             lang: 'zh-cn',
             screenshot: true,
+            autoplay: true, // Auto play for continuous watching
             video: {
                 url: finalUrl,
                 type: 'customHls',
@@ -225,6 +245,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                             hls.loadSource(video.src);
                             hls.attachMedia(video);
                             hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                                // Restore history time on first load (usually triggered by user click)
+                                // If autoplaying next episode, historyTimeRef should be 0.
                                 if (historyTimeRef.current > 0) {
                                     video.currentTime = historyTimeRef.current;
                                 }
@@ -243,17 +265,42 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         dpRef.current = dp;
 
         // Events
+        dp.on('canplay', () => {
+             // Restore Speed
+             if (playbackRateRef.current !== 1) {
+                 dp.video.playbackRate = playbackRateRef.current;
+             }
+             // Fallback seek if HLS event missed it
+             if (Math.abs(dp.video.currentTime - historyTimeRef.current) > 5 && historyTimeRef.current > 0) {
+                 dp.seek(historyTimeRef.current);
+             }
+        });
+
         dp.on('timeupdate', () => {
             if (dp.video.currentTime > 5) {
                 updateHistoryProgress(movieId, dp.video.currentTime);
             }
         });
-        
-        dp.on('canplay', () => {
-            // Ensure history is applied if missed by HLS event
-             if (Math.abs(dp.video.currentTime - historyTimeRef.current) > 5 && historyTimeRef.current > 0) {
-                 dp.seek(historyTimeRef.current);
-             }
+
+        dp.on('ratechange', () => {
+            playbackRateRef.current = dp.video.playbackRate;
+        });
+
+        // Auto Next Episode
+        dp.on('ended', () => {
+            const list = playListRef.current;
+            const currentIndex = list.findIndex(ep => ep.url === currentUrl);
+            
+            if (currentIndex !== -1 && currentIndex < list.length - 1) {
+                const nextEp = list[currentIndex + 1];
+                dp.notice(`即将播放下一集: ${nextEp.name}`, 2000);
+                setTimeout(() => {
+                    historyTimeRef.current = 0; // Reset history for new episode
+                    setCurrentUrl(nextEp.url);
+                }, 500);
+            } else {
+                dp.notice('播放结束', 2000);
+            }
         });
     };
 
