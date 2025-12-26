@@ -41,7 +41,13 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round|Material+Icons+Outlined" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.0/dist/hls.min.js"></script>
+    
+    <!-- Player Dependencies -->
+    <script src="https://s4.zstatic.net/ajax/libs/hls.js/1.5.6/hls.min.js" crossorigin="anonymous"></script>
+    <script src="https://s4.zstatic.net/ajax/libs/dplayer/1.26.0/DPlayer.min.js" crossorigin="anonymous"></script>
+    <!-- DPlayer CSS (Required for React integration to ensure styles load correctly) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
+
     <style>
       .hide-scrollbar::-webkit-scrollbar {
         display: none;
@@ -53,6 +59,14 @@
       body {
         transition-property: background-color, color;
         transition-duration: 300ms;
+      }
+      /* DPlayer Override for Dark Mode integration */
+      .dplayer-menu {
+          background: rgba(255, 255, 255, 0.9) !important;
+      }
+      .dark .dplayer-menu {
+          background: rgba(30, 41, 59, 0.9) !important;
+          color: #fff !important;
       }
     </style>
 <script type="importmap">
