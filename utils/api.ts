@@ -8,34 +8,20 @@ interface ProxyConfig {
 
 // Optimized Proxy List
 const PROXIES: ProxyConfig[] = [
-  // Priority 1: Vercel Serverless Proxy (Local) - Best for Mixed Content & Stability
+  // Priority 1: Vercel Serverless Proxy (Local)
   { url: '/api/proxy?url=', type: 'query' },
-  // Priority 2: CORS Proxy IO (Fast External)
-  { url: 'https://corsproxy.io/?', type: 'append' },
+  // Priority 2: CodeTabs (External Backup)
+  { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
   // Priority 3: AllOrigins (External Backup)
   { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
+  // Priority 4: CORS Proxy IO (External Backup)
+  { url: 'https://corsproxy.io/?', type: 'append' },
 ];
 
 // Helper to fetch through proxy with fallback
 const fetchViaProxy = async (targetUrl: string): Promise<string> => {
   let lastError;
   
-  // 1. Try Direct Fetch first
-  try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for direct
-      const response = await fetch(targetUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-          const text = await response.text();
-          if (text.trim().startsWith('{') || text.trim().startsWith('<')) {
-              return text;
-          }
-      }
-  } catch (e) {}
-
-  // 2. Try Proxies
   for (const proxy of PROXIES) {
     try {
       let url;
@@ -48,7 +34,7 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
           controller.abort(); 
-      }, 5000); 
+      }, 10000); 
       
       try {
         const response = await fetch(url, { signal: controller.signal });
@@ -57,8 +43,13 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
         if (response.ok) {
             const text = await response.text();
             const trimmed = text.trim().toLowerCase();
-            if (trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html')) {
-                throw new Error('Proxy returned HTML error page instead of data');
+            if (trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html') || trimmed.includes('404 not found') || trimmed.includes('error')) {
+                if (trimmed.includes('missing url parameter') || trimmed.includes('failed to fetch data')) {
+                     throw new Error('Proxy API error');
+                }
+                if (trimmed.length < 200 && (trimmed.includes('error') || trimmed.includes('denied'))) {
+                    throw new Error('Proxy returned error message');
+                }
             }
             return text;
         }
@@ -76,13 +67,14 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
 
 /**
  * Format Image URL
- * Standardizes protocol and removes CMS variables.
+ * Minimal processing: just fix protocol relative URLs.
+ * DO NOT proxy images unless absolutely necessary.
  */
 const formatImageUrl = (url: any): string => {
     if (!url || typeof url !== 'string') return '';
     let cleanUrl = url.trim();
     
-    // Remove CMS variables like {mac_url}
+    // Remove CMS vars
     cleanUrl = cleanUrl.replace(/\{mac_url\}/gi, '');
     
     // Handle Protocol Relative
@@ -90,28 +82,21 @@ const formatImageUrl = (url: any): string => {
         return `https:${cleanUrl}`;
     }
     
-    // If it's a relative path (unlikely in most CMS but possible), keep it as is 
-    // but ensure it's not just a filename.
+    // If it's http, leave it (browser might block mixed content, but proxying images is heavy)
+    // Most sources support https now.
+    
     return cleanUrl;
 };
 
 /**
  * Extract image from item
- * DIRECTLY extracts vod_pic as requested by the user.
+ * Prioritize vod_pic directly from JSON
  */
-const extractImage = (item: any): string => {
-    // Priority 1: Direct vod_pic field
-    if (item.vod_pic && typeof item.vod_pic === 'string' && item.vod_pic.length > 5) {
-        return formatImageUrl(item.vod_pic);
-    }
-    
-    // Priority 2: Alternative common fields
-    const fallback = item.vod_pic_thumb || item.vod_img || item.pic || item.img || item.picture;
-    if (fallback && typeof fallback === 'string' && fallback.length > 5) {
-        return formatImageUrl(fallback);
-    }
-
-    return '';
+const extractImage = (item: any, apiUrl: string): string => {
+    // Priority order for image fields
+    // vod_pic is the standard for MacCMS JSON
+    const rawImage = item.vod_pic || item.vod_pic_thumb || item.vod_img || item.pic || item.img || item.picture;
+    return formatImageUrl(rawImage);
 };
 
 // --- XML Parsing Helpers ---
@@ -131,7 +116,7 @@ const sanitizeXml = (xml: string): string => {
         .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
 };
 
-const parseMacCMSXml = (xmlText: string) => {
+const parseMacCMSXml = (xmlText: string, apiUrl: string) => {
     try {
         const cleanXml = sanitizeXml(xmlText);
         const parser = new DOMParser();
@@ -145,7 +130,7 @@ const parseMacCMSXml = (xmlText: string) => {
             const id = getTagValue(v, ["id", "vod_id"]);
             const name = getTagValue(v, ["name", "vod_name"]);
             const rawPic = getTagValue(v, ["pic", "vod_pic", "img", "vod_img"]);
-            const pic = formatImageUrl(rawPic);
+            const pic = formatImageUrl(rawPic); // Use simplified format
 
             const type = getTagValue(v, ["type", "type_name"]);
             const year = getTagValue(v, ["year", "vod_year"]);
@@ -219,10 +204,14 @@ export const fetchSources = async (): Promise<Source[]> => {
     const jsonText = await fetchViaProxy(targetUrl);
     const data = JSON.parse(jsonText);
     if (Array.isArray(data) && data.length > 0) {
-        return data.map((item: any) => ({ name: item.name, api: item.api }));
+        return data.map((item: any) => ({
+            name: item.name,
+            api: item.api
+        }));
     }
     return fallbackSources;
   } catch (error) {
+    console.error("Error fetching sources:", error);
     return fallbackSources;
   }
 };
@@ -233,45 +222,54 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
     let targetUrl = `${apiUrl}`;
     const separator = targetUrl.includes('?') ? '&' : '?';
     targetUrl = `${targetUrl}${separator}ac=list&pg=${page}`;
-    if (typeId) targetUrl += `&t=${typeId}`;
+    
+    if (typeId) {
+        targetUrl += `&t=${typeId}`;
+    }
     
     const content = await fetchViaProxy(targetUrl);
     
-    if (content.trim().startsWith('{')) {
-        const data = JSON.parse(content);
-        if(data && (data.list || data.class)) {
-            const categories: Category[] = [];
-            if (data.class && Array.isArray(data.class)) {
-                data.class.forEach((c: any) => {
-                    if (c.type_id && c.type_name) {
-                        categories.push({ id: c.type_id.toString(), name: c.type_name });
-                    }
-                });
-            }
-
-            const results: Movie[] = [];
-            const list = data.list || [];
-            for (let i = 0; i < list.length; i++) {
-                const v = list[i];
-                if (v.vod_name) {
-                    results.push({
-                        id: v.vod_id.toString(),
-                        vod_id: v.vod_id,
-                        title: v.vod_name,
-                        image: extractImage(v), 
-                        genre: v.type_name || '',
-                        year: v.vod_year || new Date().getFullYear().toString(),
-                        badge: v.vod_remarks || '',
-                        badgeColor: 'black'
+    try {
+        if (content.trim().startsWith('{')) {
+            const data = JSON.parse(content);
+            if(data && (data.list || data.class)) {
+                const categories: Category[] = [];
+                if (data.class && Array.isArray(data.class)) {
+                    data.class.forEach((c: any) => {
+                        if (c.type_id && c.type_name) {
+                            categories.push({ id: c.type_id.toString(), name: c.type_name });
+                        }
                     });
                 }
+
+                const results: Movie[] = [];
+                const list = data.list || [];
+                
+                for (let i = 0; i < list.length; i++) {
+                    const v = list[i];
+                    if (v.vod_name) {
+                        results.push({
+                            id: v.vod_id.toString(),
+                            vod_id: v.vod_id,
+                            title: v.vod_name,
+                            image: extractImage(v, apiUrl),
+                            genre: v.type_name || '',
+                            year: v.vod_year || new Date().getFullYear().toString(),
+                            badge: v.vod_remarks || '',
+                            badgeColor: 'black'
+                        });
+                    }
+                }
+                return { videos: results, categories };
             }
-            return { videos: results, categories };
         }
-    }
-    return parseMacCMSXml(content);
+    } catch(e) {}
+
+    return parseMacCMSXml(content, apiUrl);
+
   } catch (error) {
-    throw error;
+    console.error("Fetch List Error:", error);
+    return { videos: [], categories: [] };
   }
 };
 
@@ -284,24 +282,29 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
 
     const content = await fetchViaProxy(targetUrl);
     
-    if (content.trim().startsWith('{')) {
-      const data = JSON.parse(content);
-      if (data && data.list) {
-          return data.list.map((item: any) => ({
-              id: item.vod_id.toString(),
-              vod_id: item.vod_id,
-              title: item.vod_name,
-              image: extractImage(item),
-              genre: item.type_name || '其他',
-              year: item.vod_year || '',
-              badge: item.vod_remarks || 'HD',
-              badgeColor: 'primary'
-          }));
+    try {
+      if (content.trim().startsWith('{')) {
+        const data = JSON.parse(content);
+        if (data && data.list) {
+            return data.list.map((item: any) => ({
+                id: item.vod_id.toString(),
+                vod_id: item.vod_id,
+                title: item.vod_name,
+                image: extractImage(item, apiUrl),
+                genre: item.type_name || '其他',
+                year: item.vod_year || '',
+                badge: item.vod_remarks || 'HD',
+                badgeColor: 'primary'
+            }));
+        }
       }
-    }
-    const { videos } = parseMacCMSXml(content);
+    } catch (e) {}
+    
+    const { videos } = parseMacCMSXml(content, apiUrl);
     return videos;
+    
   } catch (error) {
+    console.warn(`Search failed for ${apiUrl} query ${query}`, error);
     return [];
   }
 };
@@ -315,33 +318,42 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
 
     const content = await fetchViaProxy(targetUrl);
     
-    if (content.trim().startsWith('{')) {
-        const data = JSON.parse(content);
-        if (data && data.list && data.list.length > 0) {
-            const item = data.list[0];
-            return {
-                id: item.vod_id.toString(),
-                vod_id: item.vod_id,
-                title: item.vod_name,
-                image: extractImage(item),
-                genre: item.type_name,
-                year: item.vod_year,
-                badge: item.vod_remarks,
-                vod_content: item.vod_content,
-                vod_actor: item.vod_actor,
-                vod_director: item.vod_director,
-                vod_play_url: item.vod_play_url, 
-                rating: 9.0 
-            };
+    try {
+        if (content.trim().startsWith('{')) {
+            const data = JSON.parse(content);
+            if (data && data.list && data.list.length > 0) {
+                const item = data.list[0];
+                return {
+                    id: item.vod_id.toString(),
+                    vod_id: item.vod_id,
+                    title: item.vod_name,
+                    image: extractImage(item, apiUrl),
+                    genre: item.type_name,
+                    year: item.vod_year,
+                    badge: item.vod_remarks,
+                    vod_content: item.vod_content,
+                    vod_actor: item.vod_actor,
+                    vod_director: item.vod_director,
+                    vod_play_url: item.vod_play_url, 
+                    rating: 9.0 
+                };
+            }
         }
-    }
-    const { videos } = parseMacCMSXml(content);
+    } catch(e) {}
+    
+    const { videos } = parseMacCMSXml(content, apiUrl);
     return videos.length > 0 ? videos[0] : null;
+
   } catch (error) {
+    console.error("Error fetching details:", error);
     return null;
   }
 };
 
+/**
+ * Smart Playlist Parser
+ * Handles multiple players (separated by $$$) and selects the best one.
+ */
 export const parsePlayUrl = (urlStr: string) => {
   if (!urlStr) return [];
   const playerRawLists = urlStr.split('$$$');
@@ -359,13 +371,22 @@ export const parsePlayUrl = (urlStr: string) => {
               url = trimmed;
           }
           url = url.trim();
-          if (url.startsWith('//')) url = 'https:' + url;
+          if (url.startsWith('//')) {
+              url = 'https:' + url;
+          }
           return { name: name.trim(), url };
-      }).filter((item): item is {name: string, url: string} => !!item && !!item.url);
+      }).filter((item): item is {name: string, url: string} => 
+          !!item && !!item.url && (item.url.startsWith('http') || item.url.startsWith('https'))
+      );
   });
 
   let bestList = candidates.find(list => list.some(ep => ep.url.includes('.m3u8')));
-  if (!bestList) bestList = candidates.find(list => list.some(ep => ep.url.includes('.mp4')));
-  if (!bestList) bestList = candidates.find(list => list.length > 0);
+  if (!bestList) {
+      bestList = candidates.find(list => list.some(ep => ep.url.includes('.mp4')));
+  }
+  if (!bestList) {
+      bestList = candidates.find(list => list.length > 0);
+  }
+
   return bestList || [];
 };

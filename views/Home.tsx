@@ -67,7 +67,7 @@ const Home: React.FC<HomeProps> = ({
   }, [savedState.loading]); // Trigger when loading finishes or view mounts ready
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
-    // We don't set loading here if it's pagination to avoid full screen flash
+    // We don't set loading here if it's pagination to avoid full screen flash, handled locally in button or implies mixed update
     if (pageNum === 1) onStateUpdate({ loading: true, error: false });
 
     try {
@@ -81,9 +81,7 @@ const Home: React.FC<HomeProps> = ({
         }
 
         if (videos.length === 0 && pageNum === 1 && fetchedCategories.length === 0) {
-             // If first page and empty, treat as error/empty -> Try switch
              onStateUpdate({ error: true, loading: false });
-             trySwitchSource(apiUrl);
         } else {
              onStateUpdate({ 
                  movies: newMovies, 
@@ -96,27 +94,7 @@ const Home: React.FC<HomeProps> = ({
     } catch (e) {
         console.error("Failed to load data", e);
         onStateUpdate({ error: true, loading: false });
-        // Auto-switch on error
-        trySwitchSource(apiUrl);
     }
-  };
-
-  // Attempt to switch to the next source if the current one fails (Auto-failover)
-  const trySwitchSource = (failedApi: string) => {
-      // Only switch if we are on the default source or the first source in the list
-      // and prevent infinite loops (simple check: if index < length -1)
-      if (sources.length > 1) {
-          const currentIndex = sources.findIndex(s => s.api === failedApi);
-          if (currentIndex !== -1 && currentIndex < sources.length - 1) {
-             const nextSource = sources[currentIndex + 1];
-             console.log(`Source ${failedApi} failed, switching to ${nextSource.name}`);
-             
-             // Small delay to prevent UI thrashing
-             setTimeout(() => {
-                onSourceChange(nextSource);
-             }, 500);
-          }
-      }
   };
 
   const handleRetry = () => {
@@ -368,7 +346,7 @@ const Home: React.FC<HomeProps> = ({
           
           <div className="flex gap-4 overflow-x-auto pb-6 hide-scrollbar snap-x -mx-4 px-4 sm:mx-0 sm:px-0">
             {history.map((movie) => (
-              <div key={`history-${movie.id}`} className="min-w-[140px] w-[140px] sm:min-w-[160px] w-[160px] snap-start relative group">
+              <div key={`history-${movie.id}`} className="min-w-[140px] w-[140px] sm:min-w-[160px] sm:w-[160px] snap-start relative group">
                  <MovieCard 
                     movie={movie} 
                     viewType="HOME" 
