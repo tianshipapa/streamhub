@@ -161,7 +161,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [cleanStatus, setCleanStatus] = useState<string>('');
-  const [playerRatio, setPlayerRatio] = useState<number>(56.25); // 16:9 Default
+  // Default aspect ratio 16:9 (56.25%)
+  const [playerRatio, setPlayerRatio] = useState<number>(56.25);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -188,36 +189,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     const loadDetails = async () => {
       if (!currentSource.api) return;
       setLoading(true);
-      setPlayerRatio(56.25); 
+      setPlayerRatio(56.25); // Reset ratio on new movie
       
+      const historyItem = getMovieHistory(movieId);
+      if (historyItem && historyItem.currentTime) {
+        historyTimeRef.current = historyItem.currentTime;
+      }
+
       const data = await fetchVideoDetails(currentSource.api, movieId);
       if (data) {
         setDetails(data);
         const parsedEpisodes = parsePlayUrl(data.vod_play_url || '');
         setPlayList(parsedEpisodes);
-        
-        // --- RESTORE HISTORY LOGIC ---
-        // 1. Get history item
-        const historyItem = getMovieHistory(movieId);
-        let startUrl = parsedEpisodes.length > 0 ? parsedEpisodes[0].url : '';
-        
-        if (historyItem) {
-            // Restore timestamp
-            historyTimeRef.current = historyItem.currentTime || 0;
-            
-            // Restore specific episode if exists in current playlist
-            if (historyItem.currentEpisodeUrl) {
-                const foundEp = parsedEpisodes.find(ep => ep.url === historyItem.currentEpisodeUrl);
-                if (foundEp) {
-                    startUrl = foundEp.url;
-                }
-            }
-        } else {
-             historyTimeRef.current = 0;
-        }
-
-        if (startUrl) {
-            setCurrentUrl(startUrl);
+        if (parsedEpisodes.length > 0) {
+            setCurrentUrl(parsedEpisodes[0].url);
         }
       }
       setLoading(false);
@@ -243,20 +228,24 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
         // Ensure libraries are loaded
         try {
+            // First pass: Wait for index.html scripts
             let artReady = await waitForGlobal('Artplayer', 3000);
             let hlsReady = await waitForGlobal('Hls', 3000);
 
+            // Second pass: Load fallbacks if missing
             if (!artReady) {
-                 await loadScript("https://cdn.jsdelivr.net/npm/artplayer@5.1.1/dist/artplayer.js");
+                 console.warn("Artplayer missing, attempting fallback load...");
+                 await loadScript("https://unpkg.com/artplayer/dist/artplayer.js");
                  artReady = await waitForGlobal('Artplayer', 5000);
             }
             if (!hlsReady) {
-                 await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js");
+                 console.warn("Hls missing, attempting fallback load...");
+                 await loadScript("https://unpkg.com/hls.js/dist/hls.min.js");
                  hlsReady = await waitForGlobal('Hls', 5000);
             }
             
             if (!artReady || !hlsReady) {
-                 setCleanStatus('核心组件加载超时');
+                 setCleanStatus('核心组件加载超时，请刷新重试');
                  if (!isMounted) return;
                  return; 
             }
@@ -273,7 +262,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         // Try M3U8 Cleaning
         if (currentUrl.includes('.m3u8')) {
             try {
-                setCleanStatus('正在分析媒体流...');
+                setCleanStatus('正在智能分析媒体流...');
                 const result = await fetchAndCleanM3u8(currentUrl);
                 if (!isMounted) return;
 
@@ -283,10 +272,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                     blobUrlRef.current = finalUrl;
                     setCleanStatus(`✅ 净化成功: ${result.log}`);
                 } else {
-                    setCleanStatus('');
+                    setCleanStatus(''); // Clear if no cleaning needed
                 }
             } catch (e) {
                 if (!isMounted) return;
+                console.warn('Cleaning skipped:', e);
                 setCleanStatus('');
             }
         }
@@ -299,15 +289,14 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         const art = new ArtplayerConstructor({
             container: containerRef.current,
             url: finalUrl,
-            poster: details?.image, 
             type: 'm3u8',
             volume: 0.7,
             isLive: false,
             muted: false,
             autoplay: true,
             pip: true,
-            autoSize: false, 
-            autoMini: false, // Changed to false to fix "cannot close" issue
+            autoSize: false, // Use CSS padding hack for container sizing
+            autoMini: true,
             screenshot: true,
             setting: true,
             loop: false,
@@ -325,7 +314,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             airplay: true,
             theme: '#2196F3',
             lang: 'zh-cn',
-            currentTime: historyTimeRef.current, // Crucial: Set initial time for native players
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
                 playsInline: true,
@@ -340,12 +328,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                         hls.attachMedia(video);
                         art.hls = hls;
                         
-                        // Restore state when HLS manifest is parsed
+                        // Restore state when HLS manifest is parsed (Most reliable)
                         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-                            // Double check if time needs restoring
                             if (historyTimeRef.current > 0) {
                                 art.currentTime = historyTimeRef.current;
                             }
+                            // Restore playback rate
                             if (playbackRateRef.current !== 1) {
                                 art.playbackRate = playbackRateRef.current;
                             }
@@ -355,8 +343,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                         art.on('destroy', () => hls.destroy());
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = url;
+                        // iOS Safari native support
                         if (historyTimeRef.current > 0) {
                              video.currentTime = historyTimeRef.current;
+                        }
+                        if (playbackRateRef.current !== 1) {
+                             video.playbackRate = playbackRateRef.current;
                         }
                     } else {
                         art.notice.show = '不支持的播放格式: m3u8';
@@ -370,49 +362,52 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         // --- Event Listeners ---
 
         art.on('ready', () => {
+            // Backup restoration
             if (playbackRateRef.current !== 1) {
                 art.playbackRate = playbackRateRef.current;
             }
-            // Additional seek check for MP4/Native
-            if (historyTimeRef.current > 0 && Math.abs(art.currentTime - historyTimeRef.current) > 2) {
-                art.currentTime = historyTimeRef.current;
-            }
         });
 
+        // Dynamic Aspect Ratio Adjustment
         art.on('video:loadedmetadata', () => {
             const v = art.video;
             if (v && v.videoWidth && v.videoHeight) {
                 let ratio = (v.videoHeight / v.videoWidth) * 100;
-                if (ratio > 100) ratio = 100;
-                if (ratio < 30) ratio = 30; 
+                // Cap ratio to prevent layout breaking on vertical videos
+                if (ratio > 100) ratio = 100; // Max 1:1
+                if (ratio < 30) ratio = 30; // Min ~3:1
                 setPlayerRatio(ratio);
             }
         });
 
+        // Track playback rate changes
         art.on('video:ratechange', () => {
             playbackRateRef.current = art.playbackRate;
         });
 
-        // Track progress & SAVE EPISODE INFO
+        // Track progress
         art.on('video:timeupdate', () => {
             if (art.currentTime > 5) {
-                const currentEp = playListRef.current.find(e => e.url === currentUrl);
-                updateHistoryProgress(movieId, art.currentTime, currentUrl, currentEp?.name);
+                updateHistoryProgress(movieId, art.currentTime);
             }
         });
 
+        // Auto Next Episode
         art.on('video:ended', () => {
             const list = playListRef.current;
             const currentIndex = list.findIndex(ep => ep.url === currentUrl);
             
             if (currentIndex !== -1 && currentIndex < list.length - 1) {
                 const nextEp = list[currentIndex + 1];
+                
+                // IMPORTANT: Capture settings again to be safe
                 playbackRateRef.current = art.playbackRate;
+
                 art.notice.show = `即将播放下一集: ${nextEp.name}`;
                 
                 setTimeout(() => {
-                    historyTimeRef.current = 0; 
-                    setCurrentUrl(nextEp.url); 
+                    historyTimeRef.current = 0; // Reset history for new episode
+                    setCurrentUrl(nextEp.url); // Trigger useEffect re-run
                 }, 1000);
             } else {
                 art.notice.show = '播放结束';
@@ -425,6 +420,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     return () => {
         isMounted = false;
         if (artRef.current && artRef.current.destroy) {
+            // Save state before destroy
             playbackRateRef.current = artRef.current.playbackRate;
             artRef.current.destroy(false);
             artRef.current = null;
@@ -452,7 +448,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
   return (
     <main className="container mx-auto px-4 py-6 space-y-8 animate-fadeIn">
-      {/* Player Section: Optimized for Mobile Ratio */}
+      {/* Player Section */}
       <section 
         className="relative w-full rounded-2xl overflow-hidden shadow-2xl bg-black ring-1 ring-gray-800 transition-all duration-500 ease-in-out"
         style={{ paddingBottom: `${playerRatio}%` }}
@@ -460,6 +456,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
          {currentUrl ? (
              <>
                 <div ref={containerRef} className="absolute inset-0 w-full h-full"></div>
+                
+                {/* Status Overlay */}
                 {cleanStatus && (
                     <div className="absolute top-4 left-4 z-50 pointer-events-none">
                         <div className="bg-black/70 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-lg text-xs backdrop-blur-md shadow-lg animate-fadeIn flex items-center gap-2">
@@ -525,7 +523,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                             key={index}
                             onClick={() => {
                                 setCurrentUrl(ep.url);
-                                historyTimeRef.current = 0; // Manual switch resets time
+                                historyTimeRef.current = 0; // Reset history for new episode
                             }}
                             className={`text-xs py-2.5 px-2 rounded-lg transition-all truncate border font-medium ${
                                 currentUrl === ep.url 

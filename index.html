@@ -58,77 +58,9 @@
         transition-property: background-color, color;
         transition-duration: 300ms;
       }
-      /* Artplayer context menu style adjustments */
+      /* Artplayer context menu style adjustments for dark mode integration if needed */
       .art-context-menu {
           backdrop-filter: blur(10px);
-      }
-
-      /* Mobile Artplayer Optimization */
-      @media (max-width: 640px) {
-        /* Force the control bar container to the BOTTOM */
-        .art-video-player .art-bottom {
-           position: absolute !important;
-           top: auto !important;
-           bottom: 0 !important;
-           left: 0 !important;
-           right: 0 !important;
-           height: auto !important;
-           padding: 0 !important;
-           display: flex !important;
-           flex-direction: column !important;
-           background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.4), transparent) !important;
-           z-index: 20 !important;
-        }
-
-        /* Progress Bar: Floating on top of the bottom bar */
-        .art-video-player .art-progress {
-           position: relative !important;
-           width: 100% !important;
-           height: 16px !important;
-           margin: 0 !important;
-           padding: 0 10px !important;
-           display: flex !important;
-           align-items: center !important;
-           cursor: pointer !important;
-           z-index: 30 !important;
-        }
-
-        /* Control Buttons Row: Compact for mobile */
-        .art-video-player .art-controls {
-            position: relative !important;
-            height: 36px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            padding: 0 6px !important;
-        }
-
-        /* Shrink all buttons to 28px */
-        .art-video-player .art-controls .art-control {
-           width: 28px !important;
-           height: 28px !important;
-           margin: 0 !important;
-        }
-        
-        /* Shrink Icons to 18px */
-        .art-video-player .art-controls .art-control .art-icon svg {
-           width: 18px !important;
-           height: 18px !important;
-        }
-
-        /* Shrink time font */
-        .art-video-player .art-controls .art-time {
-           font-size: 10px !important;
-           padding: 0 4px !important;
-           min-width: 70px !important;
-        }
-
-        /* Hide Bulky Items */
-        .art-video-player .art-controls .art-control-volume,
-        .art-video-player .art-controls .art-control-screenshot,
-        .art-video-player .art-controls .art-control-pip {
-            display: none !important;
-        }
       }
     </style>
 <script type="importmap">
