@@ -346,8 +346,8 @@ const Home: React.FC<HomeProps> = ({
         </div>
       </nav>
 
-      {/* History Section */}
-      {history.length > 0 && savedState.activeCategoryId === '' && (
+      {/* History Section: Now always visible if history exists */}
+      {history.length > 0 && (
         <section className="mb-10 animate-fadeIn">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
