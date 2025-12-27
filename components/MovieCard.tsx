@@ -12,26 +12,17 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
   const isPlayerView = viewType === 'PLAYER';
   const showPlayButton = viewType === 'SEARCH' || isPlayerView;
   const [imgSrc, setImgSrc] = useState(movie.image);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     setImgSrc(movie.image);
+    setHasError(false);
   }, [movie.image]);
 
-  // Function to handle image error with proxy fallback
   const handleImageError = () => {
-    if (imgSrc === movie.image) {
-        // First failure: Try a reliable image proxy (weserv.nl)
-        // This handles Mixed Content (HTTP on HTTPS) and some Hotlink Protection
-        if (movie.image.startsWith('http')) {
-            const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(movie.image)}&output=webp`;
-            setImgSrc(proxyUrl);
-        } else {
-            // If it's not a http/https url we can proxy, fail to placeholder
-             setImgSrc('https://via.placeholder.com/300x450/1e293b/ffffff?text=No+Image');
-        }
-    } else {
-        // Second failure (Proxy failed): Show placeholder
-        setImgSrc('https://via.placeholder.com/300x450/1e293b/ffffff?text=No+Image');
+    if (!hasError) {
+      setHasError(true);
+      setImgSrc('https://via.placeholder.com/300x450/1e293b/ffffff?text=No+Cover');
     }
   };
 
@@ -39,7 +30,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
     <div className="group cursor-pointer flex flex-col" onClick={onClick}>
       <div className={`relative overflow-hidden rounded-lg shadow-md transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-700 aspect-[2/3] ${viewType === 'SEARCH' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : ''}`}>
         <img 
-          src={imgSrc} 
+          src={imgSrc || 'https://via.placeholder.com/300x450/1e293b/ffffff?text=Loading'} 
           alt={movie.title} 
           className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
@@ -47,7 +38,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
           onError={handleImageError}
         />
         
-        {/* Overlay with Play Button */}
+        {/* Play Button Overlay */}
         <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center ${showPlayButton ? 'opacity-0 group-hover:opacity-100' : ''}`}>
            {showPlayButton && (
              <div className={`rounded-full bg-primary/90 text-white flex items-center justify-center backdrop-blur-sm transform scale-75 group-hover:scale-100 transition-transform duration-300 ${viewType === 'SEARCH' ? 'w-12 h-12' : ''}`}>
@@ -72,10 +63,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
       </div>
 
       <div className="mt-3">
-        <h3 className={`text-sm font-semibold text-text-main-light dark:text-text-main-dark line-clamp-1 group-hover:text-primary transition-colors ${isPlayerView ? 'text-base' : ''}`}>
+        <h3 className={`text-sm font-semibold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-500 transition-colors ${isPlayerView ? 'text-base' : ''}`}>
           {movie.title}
         </h3>
-        <div className={`text-xs text-text-muted-light dark:text-text-muted-dark mt-1 flex items-center justify-between`}>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-between">
           <div className="flex items-center gap-1">
              <span>{movie.year}</span>
              <span className="w-1 h-1 bg-gray-400 rounded-full"></span>

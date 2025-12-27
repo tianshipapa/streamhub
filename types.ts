@@ -34,11 +34,35 @@ export interface Source {
 
 export type ViewState = 'HOME' | 'SEARCH' | 'PLAYER';
 
+// --- State Persistence Interfaces ---
+
+export interface HomeViewState {
+  movies: Movie[];
+  categories: Category[];
+  activeCategoryId: string;
+  page: number;
+  scrollY: number;
+  sourceApi: string; // To track if source changed
+  loading: boolean;
+  error: boolean;
+}
+
+export interface SearchViewState {
+  results: Movie[];
+  query: string;
+  scrollY: number;
+  isAggregate: boolean;
+  selectedSourceApis: Set<string>;
+  loading: boolean;
+  hasSearched: boolean; // To know if we should show results or empty state
+}
+
+// --- Props Interfaces ---
+
 export interface NavProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
-  toggleTheme: () => void;
-  isDark: boolean;
+  onBack: () => void;
   onSearch: (query: string) => void;
 }
 
@@ -54,6 +78,10 @@ export interface SearchProps {
   currentSource: Source;
   sources: Source[];
   onSourceChange: (source: Source) => void;
+  onSelectMovie: (id: string) => void;
+  // State injection
+  savedState: SearchViewState;
+  onStateUpdate: (updates: Partial<SearchViewState>) => void;
 }
 
 export interface HomeProps {
@@ -64,4 +92,7 @@ export interface HomeProps {
   onSourceChange: (source: Source) => void;
   onAddCustomSource: (name: string, api: string) => void;
   onRemoveCustomSource: (api: string) => void;
+  // State injection
+  savedState: HomeViewState;
+  onStateUpdate: (updates: Partial<HomeViewState>) => void;
 }

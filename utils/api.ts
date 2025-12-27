@@ -7,7 +7,6 @@ interface ProxyConfig {
 }
 
 // Optimized Proxy List
-// Priority 1 is now our own Vercel API route which avoids CORS completely and is more reliable.
 const PROXIES: ProxyConfig[] = [
   // Priority 1: Vercel Serverless Proxy (Local)
   { url: '/api/proxy?url=', type: 'query' },
@@ -26,15 +25,12 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
   for (const proxy of PROXIES) {
     try {
       let url;
-      // Handle URL construction based on proxy type
       if (proxy.type === 'query') {
           url = `${proxy.url}${encodeURIComponent(targetUrl)}`;
       } else {
-          // 'append' strategy
           url = `${proxy.url}${targetUrl}`;
       }
       
-      // 10s timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
           controller.abort(); 
@@ -46,85 +42,61 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
 
         if (response.ok) {
             const text = await response.text();
-            
-            // Critical Check: Validate that response is NOT an HTML error page
             const trimmed = text.trim().toLowerCase();
             if (trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html') || trimmed.includes('404 not found') || trimmed.includes('error')) {
-                // If it's the Vercel proxy returning JSON error, we want to skip it
                 if (trimmed.includes('missing url parameter') || trimmed.includes('failed to fetch data')) {
                      throw new Error('Proxy API error');
                 }
-                
-                // Allow some XML that might look like HTML if we are desperate, but usually strict errors are bad
                 if (trimmed.length < 200 && (trimmed.includes('error') || trimmed.includes('denied'))) {
                     throw new Error('Proxy returned error message');
                 }
             }
-            
             return text;
         }
-        
         throw new Error(`Status ${response.status}`);
-
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
-        // Continue to next proxy
         continue;
       }
-
     } catch (error) {
-      // Don't log expected fallbacks too noisily
-      // console.warn(`Proxy ${proxy.url} failed:`, error);
       lastError = error;
     }
   }
-  
-  throw lastError || new Error(`Failed to fetch ${targetUrl} after trying multiple proxies`);
+  throw lastError || new Error(`Failed to fetch ${targetUrl}`);
 };
 
-// Helper to ensure images load correctly
-const fixImageUrl = (url: string, baseUrl?: string): string => {
-  if (!url) return '';
-  
-  try {
-    let result = url.trim();
-    result = result.replace(/\{mac_url\}/gi, '');
-
-    if (result.startsWith('//')) {
-        result = `https:${result}`;
-    } else if (result.startsWith('www.')) {
-        result = `https://${result}`;
-    } else if (result.startsWith('http')) {
-        if ((result.includes('localhost') || result.includes('127.0.0.1')) && baseUrl) {
-            try {
-                const urlObj = new URL(result);
-                const path = urlObj.pathname + urlObj.search;
-                let rootOrigin = '';
-                if (baseUrl.startsWith('http')) {
-                   const parts = baseUrl.split('/');
-                   if (parts.length >= 3) rootOrigin = `${parts[0]}//${parts[2]}`;
-                }
-                if (rootOrigin) {
-                    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-                    result = `${rootOrigin}${cleanPath}`;
-                }
-            } catch(e) {}
-        }
-    } else if (!result.startsWith('http') && !result.startsWith('data:')) {
-        if (baseUrl && baseUrl.startsWith('http')) {
-            try {
-                const origin = new URL(baseUrl).origin;
-                const path = result.startsWith('/') ? result : `/${result}`;
-                result = `${origin}${path}`;
-            } catch(e) {}
-        }
+/**
+ * Format Image URL
+ * Minimal processing: just fix protocol relative URLs.
+ * DO NOT proxy images unless absolutely necessary.
+ */
+const formatImageUrl = (url: any): string => {
+    if (!url || typeof url !== 'string') return '';
+    let cleanUrl = url.trim();
+    
+    // Remove CMS vars
+    cleanUrl = cleanUrl.replace(/\{mac_url\}/gi, '');
+    
+    // Handle Protocol Relative
+    if (cleanUrl.startsWith('//')) {
+        return `https:${cleanUrl}`;
     }
+    
+    // If it's http, leave it (browser might block mixed content, but proxying images is heavy)
+    // Most sources support https now.
+    
+    return cleanUrl;
+};
 
-    return result;
-
-  } catch (err) {
-    return url;
-  }
+/**
+ * Extract image from item
+ * Prioritize vod_pic directly from JSON
+ */
+const extractImage = (item: any, apiUrl: string): string => {
+    // Priority order for image fields
+    // vod_pic is the standard for MacCMS JSON
+    const rawImage = item.vod_pic || item.vod_pic_thumb || item.vod_img || item.pic || item.img || item.picture;
+    return formatImageUrl(rawImage);
 };
 
 // --- XML Parsing Helpers ---
@@ -144,33 +116,22 @@ const sanitizeXml = (xml: string): string => {
         .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
 };
 
-const parseMacCMSXml = (xmlText: string, baseUrl?: string) => {
+const parseMacCMSXml = (xmlText: string, apiUrl: string) => {
     try {
         const cleanXml = sanitizeXml(xmlText);
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(cleanXml, "text/xml");
-        
-        // Loosen check: Check for root element 'rss' or 'play' or 'video'
-        const hasRss = xmlDoc.getElementsByTagName("rss").length > 0;
-        const hasList = xmlDoc.getElementsByTagName("list").length > 0;
-        const hasVideo = xmlDoc.getElementsByTagName("video").length > 0;
-
-        if (!hasRss && !hasList && !hasVideo) {
-             // Fallback: If no standard tags, check if there's any parsing error
-             if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
-                 throw new Error("XML Parsing Error");
-             }
-        }
         
         const videos: Movie[] = [];
         const videoTags = xmlDoc.getElementsByTagName("video"); 
         
         for (let i = 0; i < videoTags.length; i++) {
             const v = videoTags[i];
-            
             const id = getTagValue(v, ["id", "vod_id"]);
             const name = getTagValue(v, ["name", "vod_name"]);
-            const pic = getTagValue(v, ["pic", "vod_pic", "img"]);
+            const rawPic = getTagValue(v, ["pic", "vod_pic", "img", "vod_img"]);
+            const pic = formatImageUrl(rawPic); // Use simplified format
+
             const type = getTagValue(v, ["type", "type_name"]);
             const year = getTagValue(v, ["year", "vod_year"]);
             const note = getTagValue(v, ["note", "vod_remarks"]);
@@ -179,7 +140,7 @@ const parseMacCMSXml = (xmlText: string, baseUrl?: string) => {
             const director = getTagValue(v, ["director", "vod_director"]);
             
             let playUrl = getTagValue(v, ["vod_play_url"]);
-            if (!playUrl) {
+            if (!playUrl || playUrl.length < 5) {
                 const dl = v.getElementsByTagName("dl")[0];
                 if (dl) {
                     const dds = dl.getElementsByTagName("dd");
@@ -188,7 +149,7 @@ const parseMacCMSXml = (xmlText: string, baseUrl?: string) => {
                         const text = dds[j].textContent;
                         if(text) parts.push(text.trim());
                     }
-                    playUrl = parts.join("$$$");
+                    if (parts.length > 0) playUrl = parts.join("$$$");
                 }
             }
 
@@ -197,7 +158,7 @@ const parseMacCMSXml = (xmlText: string, baseUrl?: string) => {
                     id,
                     vod_id: id,
                     title: name,
-                    image: fixImageUrl(pic, baseUrl),
+                    image: pic,
                     genre: type,
                     year: year || new Date().getFullYear().toString(),
                     badge: note,
@@ -231,7 +192,6 @@ const parseMacCMSXml = (xmlText: string, baseUrl?: string) => {
 
 // Fetch Sources List
 export const fetchSources = async (): Promise<Source[]> => {
-  // HIGH RELIABILITY SOURCES (HTTPS)
   const fallbackSources = [
       { name: '量子资源', api: 'https://cj.lziapi.com/api.php/provide/vod/' }, 
       { name: '非凡资源', api: 'https://cj.ffzyapi.com/api.php/provide/vod/' },
@@ -260,7 +220,6 @@ export const fetchSources = async (): Promise<Source[]> => {
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
   try {
     let targetUrl = `${apiUrl}`;
-    // Force ac=list which is usually XML and widely supported
     const separator = targetUrl.includes('?') ? '&' : '?';
     targetUrl = `${targetUrl}${separator}ac=list&pg=${page}`;
     
@@ -268,10 +227,8 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
         targetUrl += `&t=${typeId}`;
     }
     
-    // 1. Attempt fetch
     const content = await fetchViaProxy(targetUrl);
     
-    // 2. Try JSON parse first (some APIs return JSON even if we didn't explicitly ask, or if we did)
     try {
         if (content.trim().startsWith('{')) {
             const data = JSON.parse(content);
@@ -289,28 +246,25 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
                 const list = data.list || [];
                 
                 for (let i = 0; i < list.length; i++) {
-                const v = list[i];
-                if (v.vod_name) {
-                    results.push({
-                    id: v.vod_id.toString(),
-                    vod_id: v.vod_id,
-                    title: v.vod_name,
-                    image: fixImageUrl(v.vod_pic, apiUrl),
-                    genre: v.type_name || '',
-                    year: v.vod_year || new Date().getFullYear().toString(),
-                    badge: v.vod_remarks || '',
-                    badgeColor: 'black'
-                    });
-                }
+                    const v = list[i];
+                    if (v.vod_name) {
+                        results.push({
+                            id: v.vod_id.toString(),
+                            vod_id: v.vod_id,
+                            title: v.vod_name,
+                            image: extractImage(v, apiUrl),
+                            genre: v.type_name || '',
+                            year: v.vod_year || new Date().getFullYear().toString(),
+                            badge: v.vod_remarks || '',
+                            badgeColor: 'black'
+                        });
+                    }
                 }
                 return { videos: results, categories };
             }
         }
-    } catch(e) {
-        // Not JSON, continue to XML
-    }
+    } catch(e) {}
 
-    // 3. Try XML parse
     return parseMacCMSXml(content, apiUrl);
 
   } catch (error) {
@@ -324,31 +278,28 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
   try {
     let targetUrl = `${apiUrl}`;
     const separator = targetUrl.includes('?') ? '&' : '?';
-    // Use ac=videolist or ac=list with wd parameter
     targetUrl = `${targetUrl}${separator}ac=list&wd=${encodeURIComponent(query)}`;
 
     const content = await fetchViaProxy(targetUrl);
     
-    // Try JSON
     try {
       if (content.trim().startsWith('{')) {
         const data = JSON.parse(content);
         if (data && data.list) {
             return data.list.map((item: any) => ({
-            id: item.vod_id.toString(),
-            vod_id: item.vod_id,
-            title: item.vod_name,
-            image: fixImageUrl(item.vod_pic, apiUrl),
-            genre: item.type_name || '其他',
-            year: item.vod_year || '',
-            badge: item.vod_remarks || 'HD',
-            badgeColor: 'primary'
+                id: item.vod_id.toString(),
+                vod_id: item.vod_id,
+                title: item.vod_name,
+                image: extractImage(item, apiUrl),
+                genre: item.type_name || '其他',
+                year: item.vod_year || '',
+                badge: item.vod_remarks || 'HD',
+                badgeColor: 'primary'
             }));
         }
       }
     } catch (e) {}
     
-    // Try XML
     const { videos } = parseMacCMSXml(content, apiUrl);
     return videos;
     
@@ -363,7 +314,6 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
   try {
     let targetUrl = `${apiUrl}`;
     const separator = targetUrl.includes('?') ? '&' : '?';
-    // Use ac=detail for details
     targetUrl = `${targetUrl}${separator}ac=detail&ids=${ids}`;
 
     const content = await fetchViaProxy(targetUrl);
@@ -377,7 +327,7 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
                     id: item.vod_id.toString(),
                     vod_id: item.vod_id,
                     title: item.vod_name,
-                    image: fixImageUrl(item.vod_pic, apiUrl),
+                    image: extractImage(item, apiUrl),
                     genre: item.type_name,
                     year: item.vod_year,
                     badge: item.vod_remarks,
@@ -400,18 +350,43 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
   }
 };
 
+/**
+ * Smart Playlist Parser
+ * Handles multiple players (separated by $$$) and selects the best one.
+ */
 export const parsePlayUrl = (urlStr: string) => {
   if (!urlStr) return [];
-  const players = urlStr.split('$$$');
-  const selectedPlayer = players[0]; 
-  const episodes = selectedPlayer.split('#');
-  
-  return episodes.map(ep => {
-    if (ep.includes('$')) {
-        const parts = ep.split('$');
-        return { name: parts[0], url: parts[1] };
-    } else {
-        return { name: '正片', url: ep };
-    }
-  }).filter(item => item.url && (item.url.includes('.m3u8') || item.url.includes('.mp4')));
+  const playerRawLists = urlStr.split('$$$');
+  const candidates = playerRawLists.map(rawList => {
+      return rawList.split('#').map(ep => {
+          const trimmed = ep.trim();
+          if (!trimmed) return null;
+          let name = '正片';
+          let url = '';
+          const splitIdx = trimmed.indexOf('$');
+          if (splitIdx > -1) {
+              name = trimmed.substring(0, splitIdx);
+              url = trimmed.substring(splitIdx + 1);
+          } else {
+              url = trimmed;
+          }
+          url = url.trim();
+          if (url.startsWith('//')) {
+              url = 'https:' + url;
+          }
+          return { name: name.trim(), url };
+      }).filter((item): item is {name: string, url: string} => 
+          !!item && !!item.url && (item.url.startsWith('http') || item.url.startsWith('https'))
+      );
+  });
+
+  let bestList = candidates.find(list => list.some(ep => ep.url.includes('.m3u8')));
+  if (!bestList) {
+      bestList = candidates.find(list => list.some(ep => ep.url.includes('.mp4')));
+  }
+  if (!bestList) {
+      bestList = candidates.find(list => list.length > 0);
+  }
+
+  return bestList || [];
 };

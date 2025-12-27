@@ -7,11 +7,11 @@ import { getMovieHistory, updateHistoryProgress } from '../utils/storage';
 declare global {
   interface Window {
     Hls: any;
-    DPlayer: any;
+    Artplayer: any;
   }
 }
 
-// --- HLS Configuration from Pro Version ---
+// --- HLS Configuration ---
 const HLS_CONFIG = {
     enableWorker: true,
     lowLatencyMode: false,
@@ -141,7 +141,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
   const [cleanStatus, setCleanStatus] = useState<string>('');
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const dpRef = useRef<any>(null);
+  const artRef = useRef<any>(null);
   const historyTimeRef = useRef<number>(0);
   const blobUrlRef = useRef<string | null>(null);
   const playbackRateRef = useRef<number>(1);
@@ -193,7 +193,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     let isMounted = true;
 
     const initPlayer = async () => {
-        // Clear blob URL if it exists from previous run
+        // Cleanup previous instance logic handled in cleanup function, 
+        // but we clean blob here to ensure fresh start
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
             blobUrlRef.current = null;
@@ -227,97 +228,118 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
         if (!isMounted) return;
 
-        // Init DPlayer
-        const dp = new window.DPlayer({
+        // Init Artplayer
+        const art = new window.Artplayer({
             container: containerRef.current,
-            theme: '#00ccff',
-            lang: 'zh-cn',
+            url: finalUrl,
+            type: 'm3u8',
+            volume: 0.7,
+            isLive: false,
+            muted: false,
+            autoplay: true,
+            pip: true,
+            autoSize: true,
+            autoMini: true,
             screenshot: true,
-            autoplay: true, // Auto play for continuous watching
-            video: {
-                url: finalUrl,
-                type: 'customHls',
-                customType: {
-                    customHls: function(video: HTMLVideoElement, player: any) {
-                        if (window.Hls.isSupported()) {
-                            const hls = new window.Hls(HLS_CONFIG);
-                            hls.loadSource(video.src);
-                            hls.attachMedia(video);
-                            hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-                                // Restore history time
-                                if (historyTimeRef.current > 0) {
-                                    video.currentTime = historyTimeRef.current;
-                                }
-                                // Aggressively restore playback rate here as well
-                                if (playbackRateRef.current !== 1) {
-                                    video.playbackRate = playbackRateRef.current;
-                                }
-                            });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                             video.src = video.src;
-                             if (historyTimeRef.current > 0) {
-                                 video.currentTime = historyTimeRef.current;
-                             }
-                             if (playbackRateRef.current !== 1) {
-                                 video.playbackRate = playbackRateRef.current;
-                             }
+            setting: true,
+            loop: false,
+            flip: true,
+            playbackRate: true,
+            aspectRatio: true,
+            fullscreen: true,
+            fullscreenWeb: true,
+            subtitleOffset: true,
+            miniProgressBar: true,
+            mutex: true,
+            backdrop: true,
+            playsInline: true,
+            autoPlayback: true,
+            airplay: true,
+            theme: '#2196F3',
+            lang: 'zh-cn',
+            moreVideoAttr: {
+                crossOrigin: 'anonymous',
+            },
+            customType: {
+                m3u8: function (video: HTMLVideoElement, url: string, art: any) {
+                    if (window.Hls.isSupported()) {
+                        if (art.hls) art.hls.destroy();
+                        const hls = new window.Hls(HLS_CONFIG);
+                        hls.loadSource(url);
+                        hls.attachMedia(video);
+                        art.hls = hls;
+                        
+                        // Restore state when HLS manifest is parsed (Most reliable)
+                        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                            if (historyTimeRef.current > 0) {
+                                art.currentTime = historyTimeRef.current;
+                            }
+                            // Restore playback rate
+                            if (playbackRateRef.current !== 1) {
+                                art.playbackRate = playbackRateRef.current;
+                            }
+                            art.play();
+                        });
+
+                        art.on('destroy', () => hls.destroy());
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = url;
+                        // iOS Safari native support
+                        if (historyTimeRef.current > 0) {
+                             video.currentTime = historyTimeRef.current;
                         }
+                        if (playbackRateRef.current !== 1) {
+                             video.playbackRate = playbackRateRef.current;
+                        }
+                    } else {
+                        art.notice.show = '不支持的播放格式: m3u8';
                     }
                 }
-            }
+            },
         });
 
-        dpRef.current = dp;
+        artRef.current = art;
 
         // --- Event Listeners ---
 
-        // Restore playback rate
-        dp.on('loadedmetadata', () => {
-             if (playbackRateRef.current !== 1) {
-                 dp.video.playbackRate = playbackRateRef.current;
-                 // Sync DPlayer UI
-                 if (dp.controller && dp.controller.updateSpeed) {
-                     dp.controller.updateSpeed(playbackRateRef.current);
-                 }
-             }
-        });
-
-        dp.on('canplay', () => {
-             if (Math.abs(dp.video.playbackRate - playbackRateRef.current) > 0.1) {
-                 dp.video.playbackRate = playbackRateRef.current;
-             }
-             if (Math.abs(dp.video.currentTime - historyTimeRef.current) > 5 && historyTimeRef.current > 0) {
-                 dp.seek(historyTimeRef.current);
-             }
-        });
-
-        dp.on('timeupdate', () => {
-            if (dp.video.currentTime > 5) {
-                updateHistoryProgress(movieId, dp.video.currentTime);
+        art.on('ready', () => {
+            // Backup restoration in case HLS event missed or native playback
+            if (playbackRateRef.current !== 1) {
+                art.playbackRate = playbackRateRef.current;
             }
         });
 
         // Track playback rate changes
-        dp.on('ratechange', () => {
-            if (dp.video) {
-                playbackRateRef.current = dp.video.playbackRate;
+        art.on('video:ratechange', () => {
+            playbackRateRef.current = art.playbackRate;
+        });
+
+        // Track progress
+        art.on('video:timeupdate', () => {
+            if (art.currentTime > 5) {
+                updateHistoryProgress(movieId, art.currentTime);
             }
         });
 
         // Auto Next Episode
-        dp.on('ended', () => {
+        art.on('video:ended', () => {
             const list = playListRef.current;
             const currentIndex = list.findIndex(ep => ep.url === currentUrl);
             
             if (currentIndex !== -1 && currentIndex < list.length - 1) {
                 const nextEp = list[currentIndex + 1];
-                dp.notice(`即将播放下一集: ${nextEp.name}`, 2000);
+                
+                // IMPORTANT: Capture settings again to be safe
+                playbackRateRef.current = art.playbackRate;
+
+                art.notice.show = `即将播放下一集: ${nextEp.name}`;
+                
                 setTimeout(() => {
                     historyTimeRef.current = 0; // Reset history for new episode
-                    setCurrentUrl(nextEp.url);
-                }, 500);
+                    setCurrentUrl(nextEp.url); // Trigger useEffect re-run
+                }, 1000);
             } else {
-                dp.notice('播放结束', 2000);
+                art.notice.show = '播放结束';
             }
         });
     };
@@ -326,14 +348,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
     return () => {
         isMounted = false;
-        if (dpRef.current) {
-            // Critical: Save current playback rate before destroying
-            // This handles cases where ratechange might not have fired or was about to fire
-            if (dpRef.current.video) {
-                playbackRateRef.current = dpRef.current.video.playbackRate;
-            }
-            dpRef.current.destroy();
-            dpRef.current = null;
+        if (artRef.current && artRef.current.destroy) {
+            // Save state before destroy
+            playbackRateRef.current = artRef.current.playbackRate;
+            artRef.current.destroy(false);
+            artRef.current = null;
         }
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);

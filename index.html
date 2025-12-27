@@ -43,10 +43,8 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round|Material+Icons+Outlined" rel="stylesheet" />
     
     <!-- Player Dependencies -->
-    <script src="https://s4.zstatic.net/ajax/libs/hls.js/1.5.6/hls.min.js" crossorigin="anonymous"></script>
-    <script src="https://s4.zstatic.net/ajax/libs/dplayer/1.26.0/DPlayer.min.js" crossorigin="anonymous"></script>
-    <!-- DPlayer CSS (Required for React integration to ensure styles load correctly) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.1.1/artplayer.js"></script>
 
     <style>
       .hide-scrollbar::-webkit-scrollbar {
@@ -60,13 +58,9 @@
         transition-property: background-color, color;
         transition-duration: 300ms;
       }
-      /* DPlayer Override for Dark Mode integration */
-      .dplayer-menu {
-          background: rgba(255, 255, 255, 0.9) !important;
-      }
-      .dark .dplayer-menu {
-          background: rgba(30, 41, 59, 0.9) !important;
-          color: #fff !important;
+      /* Artplayer context menu style adjustments for dark mode integration if needed */
+      .art-context-menu {
+          backdrop-filter: blur(10px);
       }
     </style>
 <script type="importmap">

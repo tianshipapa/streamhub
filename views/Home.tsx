@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Movie, Category, HomeProps, Source } from '../types';
+import React, { useEffect, useState, useLayoutEffect } from 'react';
+import { Movie, Category, HomeProps } from '../types';
 import MovieCard from '../components/MovieCard';
 import { Icon } from '../components/Icon';
 import { fetchVideoList } from '../utils/api';
@@ -12,87 +12,110 @@ const Home: React.FC<HomeProps> = ({
   sources, 
   onSourceChange,
   onAddCustomSource,
-  onRemoveCustomSource
+  onRemoveCustomSource,
+  savedState,
+  onStateUpdate
 }) => {
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false);
+  // We use local state for History as it's not view-dependent in the same way (always reloads from storage)
   const [history, setHistory] = useState<Movie[]>([]);
-  const [error, setError] = useState<boolean>(false);
+  const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-
+  
   // Custom Source Form State
   const [showAddSource, setShowAddSource] = useState(false);
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceApi, setNewSourceApi] = useState('');
 
+  // 1. Initial Load & Source Change Logic
   useEffect(() => {
-    setHistory(getHistory());
-  }, []);
-
-  useEffect(() => {
-    if (currentSource.api) {
-        setMovies([]);
-        setCategories([]);
-        setActiveCategoryId('');
-        setPage(1);
-        setError(false);
+    // Check if we need to load data (first run OR source changed)
+    if (currentSource.api && (currentSource.api !== savedState.sourceApi || savedState.movies.length === 0)) {
+        // Reset state for new source
+        onStateUpdate({
+            sourceApi: currentSource.api,
+            movies: [],
+            categories: [],
+            activeCategoryId: '',
+            page: 1,
+            loading: true,
+            error: false,
+            scrollY: 0
+        });
+        // Trigger load
         loadData(currentSource.api, '', 1);
+    } else {
+        // Data exists and source matches. 
+        // Just ensure loading is false if we have data (sanity check)
+        if (savedState.loading && savedState.movies.length > 0) {
+            onStateUpdate({ loading: false });
+        }
     }
-  }, [currentSource]);
+    
+    // Always load history
+    setHistory(getHistory());
+  }, [currentSource.api]); // Only depend on source API changing
+
+  // 2. Restore Scroll Position
+  useLayoutEffect(() => {
+    // Only restore if we are not loading and have saved position
+    if (!savedState.loading && savedState.scrollY > 0) {
+        window.scrollTo(0, savedState.scrollY);
+    } else if (savedState.movies.length === 0 && savedState.loading) {
+        // If loading fresh, scroll top
+        window.scrollTo(0, 0);
+    }
+  }, [savedState.loading]); // Trigger when loading finishes or view mounts ready
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
-    setLoading(true);
-    setError(false);
+    // We don't set loading here if it's pagination to avoid full screen flash, handled locally in button or implies mixed update
+    if (pageNum === 1) onStateUpdate({ loading: true, error: false });
+
     try {
         const { videos, categories: fetchedCategories } = await fetchVideoList(apiUrl, typeId, pageNum);
         
-        if (videos.length === 0 && pageNum === 1) {
-             if (fetchedCategories.length === 0) {
-                 setError(true);
-             }
-        }
-
-        if (pageNum === 1) {
-          setMovies(videos);
-        } else {
-          setMovies(prev => [...prev, ...videos]);
-        }
-
+        let newMovies = pageNum === 1 ? videos : [...savedState.movies, ...videos];
+        let newCategories = savedState.categories;
+        
         if (fetchedCategories.length > 0) {
-          setCategories(fetchedCategories);
+             newCategories = fetchedCategories;
         }
+
+        if (videos.length === 0 && pageNum === 1 && fetchedCategories.length === 0) {
+             onStateUpdate({ error: true, loading: false });
+        } else {
+             onStateUpdate({ 
+                 movies: newMovies, 
+                 categories: newCategories,
+                 loading: false,
+                 page: pageNum
+             });
+        }
+
     } catch (e) {
         console.error("Failed to load data", e);
-        setError(true);
-    } finally {
-        setLoading(false);
+        onStateUpdate({ error: true, loading: false });
     }
   };
 
   const handleRetry = () => {
-      loadData(currentSource.api, activeCategoryId, page);
+      loadData(currentSource.api, savedState.activeCategoryId, savedState.page);
   };
 
   const handleCategoryClick = (id: string) => {
-    if (activeCategoryId === id) return;
-    setActiveCategoryId(id);
-    setPage(1);
+    if (savedState.activeCategoryId === id) return;
+    onStateUpdate({ activeCategoryId: id, page: 1, movies: [], loading: true });
     loadData(currentSource.api, id, 1);
   };
 
   const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    loadData(currentSource.api, activeCategoryId, nextPage);
+    const nextPage = savedState.page + 1;
+    loadData(currentSource.api, savedState.activeCategoryId, nextPage);
   };
 
   const handleMovieClick = (movie: Movie) => {
     addToHistory(movie);
     onSelectMovie(movie.id);
+    // View change is handled by parent, which will save scrollY
     setView('PLAYER');
   };
 
@@ -127,11 +150,10 @@ const Home: React.FC<HomeProps> = ({
         setNewSourceName('');
         setNewSourceApi('');
         setShowAddSource(false);
-        setIsSourceMenuOpen(false); // Close menu after adding to trigger reload effect in parent
+        setIsSourceMenuOpen(false); 
     }
   };
 
-  // Group Sources
   const officialSources = sources.filter(s => !s.isCustom);
   const customSources = sources.filter(s => s.isCustom);
 
@@ -283,16 +305,16 @@ const Home: React.FC<HomeProps> = ({
               <button 
                 type="button"
                 onClick={() => handleCategoryClick('')}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm cursor-pointer ${activeCategoryId === '' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-100 dark:border-gray-700'}`}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm cursor-pointer ${savedState.activeCategoryId === '' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-100 dark:border-gray-700'}`}
               >
                 全部
               </button>
-              {categories.map((cat) => (
+              {savedState.categories.map((cat) => (
                 <button 
                   key={cat.id}
                   type="button"
                   onClick={() => handleCategoryClick(cat.id)}
-                  className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm cursor-pointer ${activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-100 dark:border-gray-700'}`}
+                  className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm cursor-pointer ${savedState.activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-100 dark:border-gray-700'}`}
                 >
                   {cat.name}
                 </button>
@@ -303,7 +325,7 @@ const Home: React.FC<HomeProps> = ({
       </nav>
 
       {/* History Section */}
-      {history.length > 0 && activeCategoryId === '' && (
+      {history.length > 0 && savedState.activeCategoryId === '' && (
         <section className="mb-10 animate-fadeIn">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -330,7 +352,6 @@ const Home: React.FC<HomeProps> = ({
                     viewType="HOME" 
                     onClick={() => handleHistoryClick(movie)} 
                   />
-                  {/* Progress Bar Overlay */}
                   {movie.currentTime && movie.currentTime > 0 && (
                      <div className="absolute bottom-[66px] left-0 right-0 h-1 bg-gray-700/50 z-20 pointer-events-none">
                         <div className="h-full bg-blue-500" style={{ width: '40%' }}></div> 
@@ -341,7 +362,6 @@ const Home: React.FC<HomeProps> = ({
                           继续观看
                       </div>
                   )}
-
                   <button 
                     type="button"
                     onClick={(e) => handleRemoveHistoryItem(e, movie.id)}
@@ -356,19 +376,19 @@ const Home: React.FC<HomeProps> = ({
         </section>
       )}
 
-      {/* Latest Updates Section */}
+      {/* Movie List Section */}
       <section>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            {activeCategoryId ? categories.find(c => c.id === activeCategoryId)?.name : '最新更新'}
+            {savedState.activeCategoryId ? savedState.categories.find(c => c.id === savedState.activeCategoryId)?.name : '最新更新'}
           </h2>
         </div>
         
-        {loading && page === 1 ? (
+        {savedState.loading && savedState.page === 1 ? (
           <div className="flex justify-center items-center py-20">
              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-        ) : error && movies.length === 0 ? (
+        ) : savedState.error && savedState.movies.length === 0 ? (
           <div className="flex flex-col justify-center items-center py-20 text-center">
              <Icon name="cloud_off" className="text-6xl text-gray-300 dark:text-gray-600 mb-4" />
              <p className="text-gray-500 dark:text-gray-400 mb-4">连接当前资源库失败或网络超时</p>
@@ -389,7 +409,7 @@ const Home: React.FC<HomeProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-            {movies.map((movie) => (
+            {savedState.movies.map((movie) => (
               <MovieCard 
                 key={`${movie.id}-${movie.title}`} 
                 movie={movie} 
@@ -397,7 +417,7 @@ const Home: React.FC<HomeProps> = ({
                 onClick={() => handleMovieClick(movie)} 
               />
             ))}
-            {movies.length === 0 && !loading && (
+            {savedState.movies.length === 0 && !savedState.loading && (
               <div className="col-span-full text-center py-10 text-gray-500 dark:text-gray-400">
                 暂无数据
               </div>
@@ -407,15 +427,15 @@ const Home: React.FC<HomeProps> = ({
       </section>
 
       {/* Load More Button */}
-      {movies.length > 0 && !error && (
+      {savedState.movies.length > 0 && !savedState.error && (
         <div className="mt-12 flex justify-center pb-8">
           <button 
              type="button"
              onClick={handleLoadMore}
              className="flex items-center gap-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 px-8 py-3 rounded-full font-medium hover:bg-gray-100 dark:hover:bg-slate-700 transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-             disabled={loading}
+             disabled={savedState.loading}
           >
-            {loading ? (
+            {savedState.loading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-b-0 border-current"></div>
                 <span>加载中...</span>

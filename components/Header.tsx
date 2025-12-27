@@ -5,12 +5,11 @@ import { Icon } from './Icon';
 interface HeaderProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
-  toggleTheme: () => void;
-  isDark: boolean;
+  onBack: () => void;
   onSearch: (query: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentView, setView, toggleTheme, isDark, onSearch }) => {
+const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch }) => {
   const [searchValue, setSearchValue] = useState('');
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -63,15 +62,17 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, toggleTheme, isDa
 
           {/* Actions Section */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-            {/* Theme Toggle Button */}
-            <button 
-              type="button"
-              className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-              onClick={toggleTheme}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              <Icon name={isDark ? "light_mode" : "dark_mode"} className="text-lg sm:text-xl" />
-            </button>
+            {/* Back Button (Replaces Theme Toggle) */}
+            {currentView !== 'HOME' && (
+              <button 
+                type="button"
+                className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                onClick={onBack}
+                title="返回上一页"
+              >
+                <Icon name="arrow_back" className="text-lg sm:text-xl" />
+              </button>
+            )}
           </div>
         </div>
       </div>

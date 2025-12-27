@@ -4,13 +4,36 @@ import Footer from './components/Footer';
 import Home from './views/Home';
 import Search from './views/Search';
 import Player from './views/Player';
-import { ViewState, Source } from './types';
+import { ViewState, Source, HomeViewState, SearchViewState } from './types';
 import { fetchSources } from './utils/api';
 import { getCustomSources, addCustomSourceToStorage, removeCustomSourceFromStorage } from './utils/storage';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
+  const [previousView, setPreviousView] = useState<ViewState>('HOME');
   
+  // --- Persistent View States ---
+  const [homeViewState, setHomeViewState] = useState<HomeViewState>({
+    movies: [],
+    categories: [],
+    activeCategoryId: '',
+    page: 1,
+    scrollY: 0,
+    sourceApi: '',
+    loading: true,
+    error: false
+  });
+
+  const [searchViewState, setSearchViewState] = useState<SearchViewState>({
+    results: [],
+    query: '',
+    scrollY: 0,
+    isAggregate: false,
+    selectedSourceApis: new Set(),
+    loading: false,
+    hasSearched: false
+  });
+
   // Theme state initialization
   const [isDark, setIsDark] = useState(() => {
     try {
@@ -75,12 +98,36 @@ const App: React.FC = () => {
     initSources();
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setIsDark(prev => !prev);
-  }, []);
+  // Update view wrapper to save scroll position before switching
+  const handleViewChange = (newView: ViewState) => {
+    // 1. Save state of current view before leaving
+    if (currentView === 'HOME') {
+        setHomeViewState(prev => ({ ...prev, scrollY: window.scrollY }));
+    } else if (currentView === 'SEARCH') {
+        setSearchViewState(prev => ({ ...prev, scrollY: window.scrollY }));
+    }
+
+    // 2. Track history for Player return
+    if (newView === 'PLAYER') {
+        setPreviousView(currentView);
+    }
+
+    // 3. Switch view
+    setCurrentView(newView);
+  };
+
+  const handleBack = useCallback(() => {
+    if (currentView === 'PLAYER') {
+        setCurrentView(previousView);
+    } else if (currentView === 'SEARCH') {
+        setCurrentView('HOME');
+    }
+  }, [currentView, previousView]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+    // Also update search state query
+    setSearchViewState(prev => ({ ...prev, query: query, hasSearched: false }));
   };
 
   const handleSelectMovie = (id: string) => {
@@ -91,18 +138,25 @@ const App: React.FC = () => {
     const newSource = { name, api, isCustom: true };
     const updated = addCustomSourceToStorage(newSource);
     setCustomSources(updated);
-    // Switch to new source immediately for better UX
     setCurrentSource(newSource);
   };
 
   const handleRemoveCustomSource = (api: string) => {
     const updated = removeCustomSourceFromStorage(api);
     setCustomSources(updated);
-    // If current source was the deleted one, switch to default
     if (currentSource.api === api) {
         if (updated.length > 0) setCurrentSource(updated[0]);
         else if (defaultSources.length > 0) setCurrentSource(defaultSources[0]);
     }
+  };
+
+  // State update helpers for children
+  const updateHomeState = (updates: Partial<HomeViewState>) => {
+      setHomeViewState(prev => ({ ...prev, ...updates }));
+  };
+
+  const updateSearchState = (updates: Partial<SearchViewState>) => {
+      setSearchViewState(prev => ({ ...prev, ...updates }));
   };
 
   const renderView = () => {
@@ -110,30 +164,34 @@ const App: React.FC = () => {
       case 'HOME':
         return (
           <Home 
-            setView={setCurrentView} 
+            setView={handleViewChange} 
             onSelectMovie={handleSelectMovie} 
             currentSource={currentSource}
             sources={sources}
             onSourceChange={setCurrentSource}
             onAddCustomSource={handleAddCustomSource}
             onRemoveCustomSource={handleRemoveCustomSource}
+            savedState={homeViewState}
+            onStateUpdate={updateHomeState}
           />
         );
       case 'SEARCH':
         return (
             <Search 
-                setView={setCurrentView} 
+                setView={handleViewChange} 
                 query={searchQuery} 
                 onSelectMovie={handleSelectMovie}
                 currentSource={currentSource}
                 sources={sources}
                 onSourceChange={setCurrentSource}
+                savedState={searchViewState}
+                onStateUpdate={updateSearchState}
             />
         );
       case 'PLAYER':
         return (
             <Player 
-                setView={setCurrentView} 
+                setView={handleViewChange} 
                 movieId={selectedMovieId} 
                 currentSource={currentSource}
             />
@@ -141,13 +199,15 @@ const App: React.FC = () => {
       default:
         return (
             <Home 
-                setView={setCurrentView} 
+                setView={handleViewChange} 
                 onSelectMovie={handleSelectMovie} 
                 currentSource={currentSource}
                 sources={sources}
                 onSourceChange={setCurrentSource}
                 onAddCustomSource={handleAddCustomSource}
                 onRemoveCustomSource={handleRemoveCustomSource}
+                savedState={homeViewState}
+                onStateUpdate={updateHomeState}
             />
         );
     }
@@ -157,9 +217,8 @@ const App: React.FC = () => {
     <div className="flex flex-col min-h-screen font-display">
       <Header 
         currentView={currentView} 
-        setView={setCurrentView} 
-        toggleTheme={toggleTheme}
-        isDark={isDark}
+        setView={handleViewChange} 
+        onBack={handleBack}
         onSearch={handleSearch}
       />
       
