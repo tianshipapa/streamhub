@@ -11,7 +11,7 @@ interface MovieCardProps {
 const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
   const isPlayerView = viewType === 'PLAYER';
   const showPlayButton = viewType === 'SEARCH' || isPlayerView;
-  const [imgSrc, setImgSrc] = useState(movie.image);
+  const [imgSrc, setImgSrc] = useState<string>(movie.image);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
@@ -22,7 +22,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
   const handleImageError = () => {
     if (!hasError) {
       setHasError(true);
-      setImgSrc('https://via.placeholder.com/300x450/1e293b/ffffff?text=No+Cover');
+      // 使用更稳健的占位图服务
+      setImgSrc(`https://images.placeholders.dev/?width=300&height=450&text=${encodeURIComponent(movie.title)}&fontSize=20&bgColor=%231e293b&textColor=%23ffffff`);
     }
   };
 
@@ -30,7 +31,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
     <div className="group cursor-pointer flex flex-col" onClick={onClick}>
       <div className={`relative overflow-hidden rounded-lg shadow-md transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-700 aspect-[2/3] ${viewType === 'SEARCH' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : ''}`}>
         <img 
-          src={imgSrc || 'https://via.placeholder.com/300x450/1e293b/ffffff?text=Loading'} 
+          src={imgSrc || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'} 
           alt={movie.title} 
           className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
@@ -47,16 +48,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
            )}
         </div>
 
-        {/* Source Badge (Left) */}
+        {/* Source Badge */}
         {movie.sourceName && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded backdrop-blur-sm text-xs shadow-sm bg-purple-600/90 text-white z-10">
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded backdrop-blur-sm text-[10px] shadow-sm bg-purple-600/90 text-white z-10 font-medium">
             {movie.sourceName}
           </div>
         )}
 
-        {/* Quality/Note Badge (Right) */}
+        {/* Quality Badge */}
         {movie.badge && (
-          <div className={`absolute top-2 right-2 px-2 py-0.5 rounded backdrop-blur-sm text-xs shadow-sm ${movie.badgeColor === 'primary' ? 'bg-primary text-white' : 'bg-black/70 text-white'} z-10`}>
+          <div className={`absolute top-2 right-2 px-2 py-0.5 rounded backdrop-blur-sm text-[10px] shadow-sm ${movie.badgeColor === 'primary' ? 'bg-primary text-white' : 'bg-black/70 text-white'} z-10 font-bold`}>
             {movie.badge}
           </div>
         )}
@@ -66,15 +67,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
         <h3 className={`text-sm font-semibold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-500 transition-colors ${isPlayerView ? 'text-base' : ''}`}>
           {movie.title}
         </h3>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-between">
+        <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-between">
           <div className="flex items-center gap-1">
              <span>{movie.year}</span>
              <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-             <span>{movie.genre}</span>
+             <span className="truncate max-w-[80px]">{movie.genre}</span>
           </div>
           {movie.rating && (
             <span className="flex items-center text-yellow-500 font-bold">
-              <Icon name="star" type="outlined" className="text-sm mr-0.5" />
+              <Icon name="star" type="outlined" className="text-xs mr-0.5" />
               {movie.rating}
             </span>
           )}
