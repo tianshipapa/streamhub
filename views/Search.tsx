@@ -1,3 +1,4 @@
+
 import React, { useEffect, useLayoutEffect } from 'react';
 import { Movie, SearchProps } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -92,7 +93,7 @@ const Search: React.FC<SearchProps> = ({
     }
     
     addToHistory(movie);
-    onSelectMovie(movie.id);
+    onSelectMovie(movie); // Fixed: Pass the movie object instead of id string
     setView('PLAYER');
   };
 

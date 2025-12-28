@@ -80,7 +80,7 @@ export interface SearchProps {
   currentSource: Source;
   sources: Source[];
   onSourceChange: (source: Source) => void;
-  onSelectMovie: (id: string) => void;
+  onSelectMovie: (movie: Movie) => void;
   // State injection
   savedState: SearchViewState;
   onStateUpdate: (updates: Partial<SearchViewState>) => void;
@@ -88,7 +88,7 @@ export interface SearchProps {
 
 export interface HomeProps {
   setView: (view: ViewState) => void;
-  onSelectMovie: (id: string) => void;
+  onSelectMovie: (movie: Movie) => void;
   currentSource: Source;
   sources: Source[];
   onSourceChange: (source: Source) => void;
