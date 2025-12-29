@@ -9,7 +9,6 @@ interface ProxyConfig {
 const PROXIES: ProxyConfig[] = [
   { url: '/api/proxy?url=', type: 'query' },
   { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
-  { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
   { url: 'https://corsproxy.io/?', type: 'append' },
 ];
 
@@ -19,19 +18,25 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
     try {
       let url = proxy.type === 'query' ? `${proxy.url}${encodeURIComponent(targetUrl)}` : `${proxy.url}${targetUrl}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); 
+      const timeoutId = setTimeout(() => controller.abort(), 10000); 
+      
       try {
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
-        if (response.ok) return await response.text();
+        if (response.ok) {
+          const text = await response.text();
+          if (text && text.trim().length > 0) return text;
+          throw new Error("Empty response body");
+        }
       } catch (e) {
         clearTimeout(timeoutId);
+        console.warn(`Proxy ${proxy.url} failed:`, e);
       }
     } catch (error) {
       lastError = error;
     }
   }
-  throw lastError || new Error(`Failed to fetch ${targetUrl}`);
+  throw lastError || new Error(`Failed to fetch ${targetUrl} via all available proxies`);
 };
 
 // --- Helper Functions ---
@@ -47,15 +52,23 @@ const getBaseHost = (apiUrl: string): string => {
 
 /**
  * 格式化图片 URL：直接提取，不使用代理
+ * 这里的逻辑要确保不会把已经完整的 URL 再次拼接
  */
 const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): string => {
     if (!url) return "";
     let cleaned = url.trim();
+    
+    // 如果是完整的 URL，直接返回
     if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+    
+    // 处理协议相对路径
     if (cleaned.startsWith('//')) return 'https:' + cleaned;
     
+    // 处理域内路径
     const domain = (providedDomain || apiHost).replace(/\/$/, '');
     if (cleaned.startsWith('/')) return domain + cleaned;
+    
+    // 其他情况尝试拼接
     if (!cleaned.includes('://')) return domain + '/' + cleaned;
     
     return cleaned;
@@ -167,14 +180,12 @@ export const fetchSources = async (): Promise<Source[]> => {
 
 /**
  * 获取视频列表
- * 策略：并行请求 ac=list 获取分类，ac=detail 获取带图片的列表。
  */
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
     
-    // 并行请求：一个保分类，一个保图片
     const listUrl = `${apiUrl}${separator}ac=list`;
     const detailUrl = `${apiUrl}${separator}ac=detail&pg=${page}${typeId ? `&t=${typeId}` : ''}`;
 
@@ -186,7 +197,7 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
     let categories: Category[] = [];
     let videos: Movie[] = [];
 
-    // 1. 解析分类（从 ac=list 的响应中提取）
+    // 1. 解析分类
     try {
         if (listContent.trim().startsWith('{')) {
             const data = JSON.parse(listContent);
@@ -197,9 +208,9 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
         } else {
             categories = parseMacCMSXml(listContent, apiHost).categories;
         }
-    } catch (e) { console.warn("Failed to parse categories from ac=list", e); }
+    } catch (e) { console.warn("Failed to parse categories", e); }
 
-    // 2. 解析视频（从 ac=detail 的响应中提取，确保有图片和播放地址）
+    // 2. 解析视频
     try {
         if (detailContent.trim().startsWith('{')) {
             const data = JSON.parse(detailContent);
@@ -208,7 +219,7 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
         } else {
             videos = parseMacCMSXml(detailContent, apiHost).videos;
         }
-    } catch (e) { console.warn("Failed to parse videos from ac=detail", e); }
+    } catch (e) { console.warn("Failed to parse videos", e); }
 
     return { videos, categories };
   } catch (error) {
@@ -217,7 +228,35 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
 };
 
 /**
- * 搜索视频：使用 ac=detail
+ * 豆瓣推荐抓取
+ * 修复：增加对 JSON 的解析容错，并直接提取图片字段
+ */
+export const fetchDoubanSubjects = async (type: 'movie' | 'tv', tag: string, pageStart: number = 0): Promise<Movie[]> => {
+  try {
+    const url = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=24&page_start=${pageStart}`;
+    const text = await fetchViaProxy(url);
+    if (!text || text.trim().length === 0) return [];
+    
+    const data = JSON.parse(text);
+    if (!data || !data.subjects) return [];
+    
+    return data.subjects.map((item: any) => ({
+      id: (item.id || '').toString(),
+      title: item.title || '',
+      year: '', 
+      genre: tag,
+      image: item.cover || '', // 豆瓣图片直连
+      rating: parseFloat(item.rate) || 0,
+      isDouban: true
+    }));
+  } catch (e) {
+    console.error("Douban fetch failed:", e);
+    return [];
+  }
+};
+
+/**
+ * 搜索视频
  */
 export const searchVideos = async (apiUrl: string, query: string): Promise<Movie[]> => {
   try {
@@ -239,7 +278,7 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
 };
 
 /**
- * 获取视频详情：使用 ac=detail
+ * 获取视频详情
  */
 export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Movie | null> => {
   try {

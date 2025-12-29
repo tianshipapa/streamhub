@@ -22,7 +22,11 @@ const App: React.FC = () => {
     scrollY: 0,
     sourceApi: '',
     loading: true,
-    error: false
+    error: false,
+    isDoubanMode: false,
+    doubanType: 'movie',
+    doubanTag: '热门',
+    doubanMovies: []
   });
 
   const [searchViewState, setSearchViewState] = useState<SearchViewState>({
@@ -77,10 +81,6 @@ const App: React.FC = () => {
         const lastApi = getLastUsedSourceApi();
         const allSources = [...fetchedSources, ...localCustomSources];
         
-        // Restore logic: 
-        // 1. Try last used source
-        // 2. Try first custom source
-        // 3. Try first default source
         const savedSource = lastApi ? allSources.find(s => s.api === lastApi) : null;
 
         if (savedSource) {
@@ -116,15 +116,17 @@ const App: React.FC = () => {
     else if (currentView === 'SEARCH') setCurrentView('HOME');
   }, [currentView, previousView]);
 
-  const handleSearch = (query: string) => {
+  const handleSearch = (query: string, autoAggregate: boolean = false) => {
     setSearchQuery(query);
-    setSearchViewState(prev => ({ ...prev, query: query, hasSearched: false }));
+    setSearchViewState(prev => ({ 
+        ...prev, 
+        query: query, 
+        hasSearched: false,
+        isAggregate: autoAggregate || prev.isAggregate
+    }));
+    handleViewChange('SEARCH');
   };
 
-  /**
-   * 增强型选片逻辑：
-   * 如果电影对象携带了 sourceApi，且与当前全局源不一致，则自动切换源并记忆。
-   */
   const handleSelectMovie = (movie: Movie) => {
     setSelectedMovieId(movie.id);
     if (movie.sourceApi && movie.sourceApi !== currentSource.api) {
@@ -132,7 +134,6 @@ const App: React.FC = () => {
         if (target) {
             handleSourceChange(target);
         } else {
-            // 如果是历史记录里的源，但当前列表没找到，则手动构建一个临时源并记忆
             const tempSource = { name: movie.sourceName || '历史资源', api: movie.sourceApi };
             handleSourceChange(tempSource);
         }
@@ -170,6 +171,7 @@ const App: React.FC = () => {
             onSourceChange={handleSourceChange}
             onAddCustomSource={handleAddCustomSource}
             onRemoveCustomSource={handleRemoveCustomSource}
+            onSearch={handleSearch}
             savedState={homeViewState}
             onStateUpdate={updateHomeState}
           />

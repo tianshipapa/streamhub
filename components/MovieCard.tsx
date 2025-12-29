@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Movie, ViewState } from '../types';
 import { Icon } from './Icon';
@@ -22,63 +23,75 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
   const handleImageError = () => {
     if (!hasError) {
       setHasError(true);
-      // 使用更稳健的占位图服务
+      // 占位图：包含影片标题的文字占位符
       setImgSrc(`https://images.placeholders.dev/?width=300&height=450&text=${encodeURIComponent(movie.title)}&fontSize=20&bgColor=%231e293b&textColor=%23ffffff`);
     }
   };
 
   return (
     <div className="group cursor-pointer flex flex-col" onClick={onClick}>
-      <div className={`relative overflow-hidden rounded-lg shadow-md transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-700 aspect-[2/3] ${viewType === 'SEARCH' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : ''}`}>
+      {/* 封面图容器 */}
+      <div className={`relative overflow-hidden rounded-xl shadow-sm transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-800 aspect-[2/3] ring-1 ring-black/5 dark:ring-white/5 ${viewType !== 'HOME' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : 'hover:ring-blue-500'}`}>
         <img 
           src={imgSrc || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'} 
           alt={movie.title} 
-          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
           loading="lazy"
-          referrerPolicy="no-referrer"
+          referrerPolicy="no-referrer" // 关键：解决防盗链
           onError={handleImageError}
         />
         
-        {/* Play Button Overlay */}
-        <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center ${showPlayButton ? 'opacity-0 group-hover:opacity-100' : ''}`}>
-           {showPlayButton && (
-             <div className={`rounded-full bg-primary/90 text-white flex items-center justify-center backdrop-blur-sm transform scale-75 group-hover:scale-100 transition-transform duration-300 ${viewType === 'SEARCH' ? 'w-12 h-12' : ''}`}>
-                <Icon name={viewType === 'SEARCH' ? 'play_arrow' : 'play_circle_filled'} className={viewType === 'SEARCH' ? 'text-3xl ml-1' : 'text-5xl'} type={viewType === 'SEARCH' ? 'round' : 'outlined'} />
+        {/* 覆盖层交互 */}
+        <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center`}>
+           {showPlayButton ? (
+             <div className="rounded-full bg-blue-600 text-white w-12 h-12 flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow-xl">
+                <Icon name="play_arrow" className="text-3xl ml-1" />
              </div>
+           ) : (
+             movie.isDouban && (
+               <div className="bg-pink-600/90 text-white px-4 py-2 rounded-full text-xs font-bold transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                  立即检索
+               </div>
+             )
            )}
         </div>
 
-        {/* Source Badge */}
-        {movie.sourceName && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded backdrop-blur-sm text-[10px] shadow-sm bg-purple-600/90 text-white z-10 font-medium">
+        {/* 顶部标签：源名称 */}
+        {movie.sourceName && !movie.isDouban && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-md text-[10px] shadow-sm bg-blue-600/80 text-white z-10 font-bold border border-white/10">
             {movie.sourceName}
           </div>
         )}
 
-        {/* Quality Badge */}
+        {/* 顶部标签：备注/状态 */}
         {movie.badge && (
-          <div className={`absolute top-2 right-2 px-2 py-0.5 rounded backdrop-blur-sm text-[10px] shadow-sm ${movie.badgeColor === 'primary' ? 'bg-primary text-white' : 'bg-black/70 text-white'} z-10 font-bold`}>
+          <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-md backdrop-blur-md text-[10px] shadow-sm ${movie.badgeColor === 'primary' ? 'bg-amber-500 text-white' : 'bg-black/60 text-white'} z-10 font-bold border border-white/10`}>
             {movie.badge}
+          </div>
+        )}
+
+        {/* 底部浮层：豆瓣评分 */}
+        {movie.rating && movie.rating > 0 && (
+          <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center pointer-events-none">
+             <div className="bg-black/70 backdrop-blur-sm text-yellow-400 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 border border-white/5">
+                <Icon name="star" className="text-[12px]" />
+                {movie.rating.toFixed(1)}
+             </div>
           </div>
         )}
       </div>
 
-      <div className="mt-3">
-        <h3 className={`text-sm font-semibold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-500 transition-colors ${isPlayerView ? 'text-base' : ''}`}>
+      {/* 底部信息栏 */}
+      <div className="mt-3 px-1">
+        <h3 className={`text-sm font-bold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-500 transition-colors ${isPlayerView ? 'text-base' : ''}`} title={movie.title}>
           {movie.title}
         </h3>
         <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-between">
-          <div className="flex items-center gap-1">
-             <span>{movie.year}</span>
-             <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-             <span className="truncate max-w-[80px]">{movie.genre}</span>
+          <div className="flex items-center gap-1.5 truncate">
+             {movie.year && <span>{movie.year}</span>}
+             {movie.year && movie.genre && <span className="w-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></span>}
+             <span className="truncate">{movie.genre || '影视'}</span>
           </div>
-          {movie.rating && (
-            <span className="flex items-center text-yellow-500 font-bold">
-              <Icon name="star" type="outlined" className="text-xs mr-0.5" />
-              {movie.rating}
-            </span>
-          )}
         </div>
       </div>
     </div>

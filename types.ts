@@ -16,11 +16,13 @@ export interface Movie {
   vod_director?: string;
   // User data
   currentTime?: number;
-  currentEpisodeUrl?: string; // New: Store specific episode
-  currentEpisodeName?: string; // New: Store episode name
+  currentEpisodeUrl?: string; 
+  currentEpisodeName?: string; 
   // Aggregate Search Data
   sourceApi?: string;
   sourceName?: string;
+  // Douban specific
+  isDouban?: boolean;
 }
 
 export interface Category {
@@ -44,9 +46,14 @@ export interface HomeViewState {
   activeCategoryId: string;
   page: number;
   scrollY: number;
-  sourceApi: string; // To track if source changed
+  sourceApi: string; 
   loading: boolean;
   error: boolean;
+  // Douban States
+  isDoubanMode: boolean;
+  doubanType: 'movie' | 'tv';
+  doubanTag: string;
+  doubanMovies: Movie[];
 }
 
 export interface SearchViewState {
@@ -56,7 +63,7 @@ export interface SearchViewState {
   isAggregate: boolean;
   selectedSourceApis: Set<string>;
   loading: boolean;
-  hasSearched: boolean; // To know if we should show results or empty state
+  hasSearched: boolean; 
 }
 
 // --- Props Interfaces ---
@@ -65,7 +72,8 @@ export interface NavProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
   onBack: () => void;
-  onSearch: (query: string) => void;
+  // Updated to support optional autoAggregate parameter
+  onSearch: (query: string, autoAggregate?: boolean) => void;
 }
 
 export interface PlayerProps {
@@ -81,7 +89,6 @@ export interface SearchProps {
   sources: Source[];
   onSourceChange: (source: Source) => void;
   onSelectMovie: (movie: Movie) => void;
-  // State injection
   savedState: SearchViewState;
   onStateUpdate: (updates: Partial<SearchViewState>) => void;
 }
@@ -94,7 +101,8 @@ export interface HomeProps {
   onSourceChange: (source: Source) => void;
   onAddCustomSource: (name: string, api: string) => void;
   onRemoveCustomSource: (api: string) => void;
-  // State injection
+  // Updated to support optional autoAggregate parameter
+  onSearch: (query: string, autoAggregate?: boolean) => void; // Added to trigger search from Home
   savedState: HomeViewState;
   onStateUpdate: (updates: Partial<HomeViewState>) => void;
 }

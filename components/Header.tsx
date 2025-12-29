@@ -6,7 +6,8 @@ interface HeaderProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
   onBack: () => void;
-  onSearch: (query: string) => void;
+  // Updated to support optional autoAggregate parameter
+  onSearch: (query: string, autoAggregate?: boolean) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch }) => {
