@@ -57,9 +57,7 @@ const getBaseHost = (apiUrl: string): string => {
 
 /**
  * 清理并格式化图片 URL
- * @param url 原始图片路径
- * @param apiHost API 域名
- * @param providedDomain API 响应中可能提供的图片专用域名
+ * 直接提取 vod_pic 字段，处理相对路径，不使用代理。
  */
 const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): string => {
     if (!url) return "";
@@ -75,15 +73,16 @@ const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): 
         return 'https:' + cleaned;
     }
 
+    // 确定基准域名：优先使用接口提供的专用图片域名 (pic_domain)
+    const domain = (providedDomain || apiHost).replace(/\/$/, '');
+
     // 处理相对路径 /upload/...
     if (cleaned.startsWith('/')) {
-        const domain = (providedDomain || apiHost).replace(/\/$/, '');
         return domain + cleaned;
     }
     
     // 处理无斜杠开头的相对路径 upload/...
     if (!cleaned.includes('://')) {
-        const domain = (providedDomain || apiHost).replace(/\/$/, '');
         return domain + '/' + cleaned;
     }
 
@@ -128,7 +127,6 @@ const parseMacCMSXml = (xmlText: string, apiHost: string) => {
         const videos: Movie[] = [];
         const videoTags = xmlDoc.getElementsByTagName("video"); 
         
-        // 尝试从 XML 中提取图片域名 (部分接口在 list 标签上)
         const listTag = xmlDoc.getElementsByTagName("list")[0];
         const picDomain = listTag?.getAttribute("pic_domain") || listTag?.getAttribute("vod_pic_domain") || undefined;
         
@@ -197,20 +195,23 @@ export const fetchSources = async (): Promise<Source[]> => {
   }
 };
 
+/**
+ * 获取视频列表
+ * 关键修改：使用 ac=detail 替代 ac=list，以确保从列表中就能直接获取到 vod_pic 图片。
+ */
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
-    let targetUrl = `${apiUrl}${separator}ac=list&pg=${page}`;
+    // 强制使用 ac=detail 模式，该模式支持分页和分类，且返回完整字段
+    let targetUrl = `${apiUrl}${separator}ac=detail&pg=${page}`;
     if (typeId) targetUrl += `&t=${typeId}`;
     const content = await fetchViaProxy(targetUrl);
     
     try {
         if (content.trim().startsWith('{')) {
             const data = JSON.parse(content);
-            // 提取 JSON 中可能的专用图片域名
             const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
-            
             const categories: Category[] = (data.class || []).map((c: any) => ({ id: (c.type_id || c.id).toString(), name: (c.type_name || c.name) }));
             const videos: Movie[] = (data.list || []).map((v: any) => mapJsonToMovie(v, apiHost, picDomain));
             return { videos, categories };
@@ -222,11 +223,16 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
   }
 };
 
+/**
+ * 搜索视频
+ * 关键修改：搜索同样使用 ac=detail 模式，解决搜索结果页图片显示异常的问题。
+ */
 export const searchVideos = async (apiUrl: string, query: string): Promise<Movie[]> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
-    const targetUrl = `${apiUrl}${separator}ac=list&wd=${encodeURIComponent(query)}`;
+    // 使用 ac=detail 模式进行搜索
+    const targetUrl = `${apiUrl}${separator}ac=detail&wd=${encodeURIComponent(query)}`;
     const content = await fetchViaProxy(targetUrl);
     try {
       if (content.trim().startsWith('{')) {
@@ -242,6 +248,10 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
   }
 };
 
+/**
+ * 获取详情
+ * 保持原有逻辑不变。
+ */
 export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Movie | null> => {
   try {
     const apiHost = getBaseHost(apiUrl);
