@@ -12,23 +12,33 @@ declare global {
   }
 }
 
+// 经过优化的 HLS 缓存配置：大幅增加预加载深度和缓冲区容量
 const HLS_CONFIG = {
     enableWorker: true,
     lowLatencyMode: false,
-    startBufferLength: 20,
-    maxBufferLength: 120,
-    maxMaxBufferLength: 600,
-    maxBufferSize: 200 * 1024 * 1024,
-    backBufferLength: 90,
-    fragLoadingTimeOut: 20000,
-    fragLoadingMaxRetry: 6,
-    manifestLoadingTimeOut: 20000,
-    levelLoadingTimeOut: 20000,
-    maxLoadingDelay: 4, 
-    minAutoBitrate: 0, 
-    capLevelToPlayerSize: false, 
-    autoStartLoad: true,
-    maxBufferHole: 0.5,
+    // 增加初始起播缓冲，防止刚开始播放就卡顿
+    startBufferLength: 30, 
+    // 极大增加前向缓冲长度，允许缓存更长时间的内容 (300秒 = 5分钟)
+    maxBufferLength: 300, 
+    // 最大缓冲长度上限 (1200秒 = 20分钟)
+    maxMaxBufferLength: 1200,
+    // 增大缓冲区内存限制到 512MB，应对高码率视频
+    maxBufferSize: 512 * 1024 * 1024,
+    // 增加后向缓冲，防止用户小幅度回退时重新加载
+    backBufferLength: 120,
+    // 网络重试与超时控制：更加激进的重试策略
+    fragLoadingTimeOut: 30000,
+    fragLoadingMaxRetry: 10,
+    levelLoadingTimeOut: 30000,
+    manifestLoadingTimeOut: 30000,
+    // 允许更大的网络波动容忍度
+    maxLoadingDelay: 5,
+    maxBufferHole: 1.0, // 容忍 1 秒以内的内容空洞，防止卡死
+    highBufferWatchdogPeriod: 3,
+    nudgeOffset: 0.1,
+    nudgeMaxRetry: 10,  // 卡住时尝试跳过的次数
+    // ABR 自动码率优化
+    abrEwmaDefaultEstimate: 5000000, // 初始预估 5Mbps 
 };
 
 const loadScript = (src: string): Promise<void> => {
@@ -160,7 +170,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     }
   }, [cleanStatus]);
 
-  // 1. 加载详情及历史进度
   useEffect(() => {
     const loadDetails = async () => {
       if (!currentSource.api) return;
@@ -170,7 +179,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
       isPlayerReadyRef.current = false;
       
       const historyItem = getMovieHistory(movieId);
-      // 精准提取历史进度 (只有在超过5秒时才尝试恢复)
       historyTimeRef.current = (historyItem && historyItem.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
 
       const data = await fetchVideoDetails(currentSource.api, movieId);
@@ -196,7 +204,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
     if (movieId) loadDetails();
   }, [movieId, currentSource.api]);
 
-  // 2. 初始化播放器
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
     let isMounted = true;
@@ -237,7 +244,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
 
         const ArtplayerConstructor = window.Artplayer;
         
-        // 核心：鲁棒的进度跳转函数
         const performSeek = (artInstance: any) => {
             if (historyTimeRef.current <= 0 || hasAppliedHistorySeek.current) {
                 isPlayerReadyRef.current = true;
@@ -248,16 +254,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             
             const doSeek = () => {
                 if (hasAppliedHistorySeek.current) return;
-                
-                // 设置进度
                 artInstance.currentTime = targetTime;
-                
-                // 验证跳转是否成功 (500ms后检查)
                 setTimeout(() => {
                     if (!artInstance || !artInstance.video) return;
-                    
                     const actualTime = artInstance.currentTime;
-                    // 如果当前时间非常接近目标时间，认为跳转成功
                     if (Math.abs(actualTime - targetTime) < 2) {
                         hasAppliedHistorySeek.current = true;
                         isPlayerReadyRef.current = true;
@@ -265,7 +265,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                         const secs = Math.floor(targetTime % 60);
                         artInstance.notice.show = `已自动为您恢复播放进度: ${mins}分${secs}秒`;
                     } else {
-                        // 补偿逻辑：如果还没到目标点，再试一次
                         artInstance.currentTime = targetTime;
                         hasAppliedHistorySeek.current = true;
                         isPlayerReadyRef.current = true;
@@ -273,7 +272,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                 }, 500);
             };
 
-            // 必须在视频有足够数据时跳转
             if (artInstance.video.readyState >= 2) {
                 doSeek();
             } else {
@@ -322,10 +320,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                         
                         hls.once(window.Hls.Events.MANIFEST_PARSED, () => {
                             if (playbackRateRef.current !== 1) artInstance.playbackRate = playbackRateRef.current;
-                            artInstance.play().catch(() => {
-                                // 忽略自动播放受限错误
-                            });
-                            // HLS 解析完后尝试首次跳转
+                            artInstance.play().catch(() => {});
                             performSeek(artInstance);
                         });
                         artInstance.on('destroy', () => hls.destroy());
@@ -338,11 +333,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         });
 
         artRef.current = art;
-
-        // 多种就绪事件监听，确保万无一失
         art.on('video:canplay', () => performSeek(art));
         art.on('ready', () => performSeek(art));
-
         art.on('video:loadedmetadata', () => {
             const v = art.video;
             if (v && v.videoWidth && v.videoHeight) {
@@ -350,17 +342,13 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                 setPlayerRatio(Math.min(Math.max(ratio, 30), 100));
             }
         });
-
         art.on('video:ratechange', () => { playbackRateRef.current = art.playbackRate; });
-
         art.on('video:timeupdate', () => {
-            // 严谨判断：只有跳转完成且当前时间有效时才保存
             if (isPlayerReadyRef.current && art.currentTime > 5) {
                 const ep = playListRef.current.find(item => item.url === currentUrl);
                 updateHistoryProgress(movieId, art.currentTime, currentUrl, ep?.name);
             }
         });
-
         art.on('video:ended', () => {
             const list = playListRef.current;
             const currentIndex = list.findIndex(ep => ep.url === currentUrl);

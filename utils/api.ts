@@ -1,12 +1,11 @@
 import { Movie, Category, Source } from '../types';
 
-// Define proxy configurations with their URL construction strategy
+// 代理仅用于 API 请求跨域，不用于图片
 interface ProxyConfig {
   url: string;
   type: 'append' | 'query';
 }
 
-// Optimized Proxy List - 仅用于 API 请求，不用于图片
 const PROXIES: ProxyConfig[] = [
   { url: '/api/proxy?url=', type: 'query' },
   { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
@@ -14,25 +13,19 @@ const PROXIES: ProxyConfig[] = [
   { url: 'https://corsproxy.io/?', type: 'append' },
 ];
 
-// Helper to fetch through proxy with fallback
 const fetchViaProxy = async (targetUrl: string): Promise<string> => {
   let lastError;
   for (const proxy of PROXIES) {
     try {
       let url = proxy.type === 'query' ? `${proxy.url}${encodeURIComponent(targetUrl)}` : `${proxy.url}${targetUrl}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); 
+      const timeoutId = setTimeout(() => controller.abort(), 8000); 
       try {
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
-        if (response.ok) {
-            const text = await response.text();
-            return text;
-        }
-        throw new Error(`Status ${response.status}`);
-      } catch (fetchError: any) {
+        if (response.ok) return await response.text();
+      } catch (e) {
         clearTimeout(timeoutId);
-        continue;
       }
     } catch (error) {
       lastError = error;
@@ -41,11 +34,8 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
   throw lastError || new Error(`Failed to fetch ${targetUrl}`);
 };
 
-// --- Helpers ---
+// --- Helper Functions ---
 
-/**
- * 提取 API 的基础域名
- */
 const getBaseHost = (apiUrl: string): string => {
     try {
         const url = new URL(apiUrl);
@@ -56,36 +46,18 @@ const getBaseHost = (apiUrl: string): string => {
 };
 
 /**
- * 清理并格式化图片 URL
- * 直接提取 vod_pic 字段，处理相对路径，不使用代理。
+ * 格式化图片 URL：直接提取，不使用代理
  */
 const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): string => {
     if (!url) return "";
     let cleaned = url.trim();
+    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+    if (cleaned.startsWith('//')) return 'https:' + cleaned;
     
-    // 如果是完整的 http/https 链接，直接返回
-    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
-        return cleaned;
-    }
-
-    // 处理协议相对路径 //
-    if (cleaned.startsWith('//')) {
-        return 'https:' + cleaned;
-    }
-
-    // 确定基准域名：优先使用接口提供的专用图片域名 (pic_domain)
     const domain = (providedDomain || apiHost).replace(/\/$/, '');
-
-    // 处理相对路径 /upload/...
-    if (cleaned.startsWith('/')) {
-        return domain + cleaned;
-    }
+    if (cleaned.startsWith('/')) return domain + cleaned;
+    if (!cleaned.includes('://')) return domain + '/' + cleaned;
     
-    // 处理无斜杠开头的相对路径 upload/...
-    if (!cleaned.includes('://')) {
-        return domain + '/' + cleaned;
-    }
-
     return cleaned;
 };
 
@@ -103,14 +75,16 @@ const sanitizeXml = (xml: string): string => {
               .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
 };
 
-// 统一映射 JSON 对象到 Movie 类型
+/**
+ * 核心数据映射
+ */
 const mapJsonToMovie = (v: any, apiHost: string, picDomain?: string): Movie => ({
     id: (v.vod_id || v.id || '').toString(),
-    vod_id: v.vod_id,
+    vod_id: (v.vod_id || v.id || '').toString(),
     title: v.vod_name || v.name || '',
     image: formatImageUrl(v.vod_pic || v.pic || v.vod_img || v.vod_pic_thumb || '', apiHost, picDomain),
     genre: v.type_name || v.type || '',
-    year: v.vod_year || v.year || new Date().getFullYear().toString(),
+    year: v.vod_year || v.year || '',
     badge: v.vod_remarks || v.note || '',
     badgeColor: 'black',
     vod_content: v.vod_content || v.des || '',
@@ -125,11 +99,11 @@ const parseMacCMSXml = (xmlText: string, apiHost: string) => {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(cleanXml, "text/xml");
         const videos: Movie[] = [];
-        const videoTags = xmlDoc.getElementsByTagName("video"); 
         
         const listTag = xmlDoc.getElementsByTagName("list")[0];
         const picDomain = listTag?.getAttribute("pic_domain") || listTag?.getAttribute("vod_pic_domain") || undefined;
         
+        const videoTags = xmlDoc.getElementsByTagName("video"); 
         for (let i = 0; i < videoTags.length; i++) {
             const v = videoTags[i];
             const movieData = {
@@ -144,9 +118,7 @@ const parseMacCMSXml = (xmlText: string, apiHost: string) => {
                 director: getTagValue(v, ["director", "vod_director"]),
                 vod_play_url: getTagValue(v, ["vod_play_url"])
             };
-            
             const movie = mapJsonToMovie(movieData, apiHost, picDomain);
-
             if (!movie.vod_play_url) {
                 const dl = v.getElementsByTagName("dl")[0];
                 if (dl) {
@@ -163,9 +135,9 @@ const parseMacCMSXml = (xmlText: string, apiHost: string) => {
         }
 
         const categories: Category[] = [];
-        const classTag = xmlDoc.getElementsByTagName("class")[0];
-        if (classTag) {
-            const tyTags = classTag.getElementsByTagName("ty");
+        const classTags = xmlDoc.getElementsByTagName("class");
+        if (classTags.length > 0) {
+            const tyTags = classTags[0].getElementsByTagName("ty");
             for (let i = 0; i < tyTags.length; i++) {
                 const id = tyTags[i].getAttribute("id");
                 const name = tyTags[i].textContent;
@@ -186,9 +158,7 @@ export const fetchSources = async (): Promise<Source[]> => {
     const targetUrl = 'https://a.wokaotianshi.eu.org/jgcj/zyvying.json';
     const jsonText = await fetchViaProxy(targetUrl);
     const data = JSON.parse(jsonText);
-    if (Array.isArray(data) && data.length > 0) {
-        return data.map((item: any) => ({ name: item.name, api: item.api }));
-    }
+    if (Array.isArray(data) && data.length > 0) return data.map((item: any) => ({ name: item.name, api: item.api }));
     return fallbackSources;
   } catch (error) {
     return fallbackSources;
@@ -197,50 +167,70 @@ export const fetchSources = async (): Promise<Source[]> => {
 
 /**
  * 获取视频列表
- * 关键修改：使用 ac=detail 替代 ac=list，以确保从列表中就能直接获取到 vod_pic 图片。
+ * 策略：并行请求 ac=list 获取分类，ac=detail 获取带图片的列表。
  */
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
-    // 强制使用 ac=detail 模式，该模式支持分页和分类，且返回完整字段
-    let targetUrl = `${apiUrl}${separator}ac=detail&pg=${page}`;
-    if (typeId) targetUrl += `&t=${typeId}`;
-    const content = await fetchViaProxy(targetUrl);
     
+    // 并行请求：一个保分类，一个保图片
+    const listUrl = `${apiUrl}${separator}ac=list`;
+    const detailUrl = `${apiUrl}${separator}ac=detail&pg=${page}${typeId ? `&t=${typeId}` : ''}`;
+
+    const [listContent, detailContent] = await Promise.all([
+        fetchViaProxy(listUrl),
+        fetchViaProxy(detailUrl)
+    ]);
+
+    let categories: Category[] = [];
+    let videos: Movie[] = [];
+
+    // 1. 解析分类（从 ac=list 的响应中提取）
     try {
-        if (content.trim().startsWith('{')) {
-            const data = JSON.parse(content);
-            const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
-            const categories: Category[] = (data.class || []).map((c: any) => ({ id: (c.type_id || c.id).toString(), name: (c.type_name || c.name) }));
-            const videos: Movie[] = (data.list || []).map((v: any) => mapJsonToMovie(v, apiHost, picDomain));
-            return { videos, categories };
+        if (listContent.trim().startsWith('{')) {
+            const data = JSON.parse(listContent);
+            categories = (data.class || []).map((c: any) => ({ 
+                id: (c.type_id || c.id || '').toString(), 
+                name: (c.type_name || c.name || '') 
+            })).filter((c: any) => c.id && c.name);
+        } else {
+            categories = parseMacCMSXml(listContent, apiHost).categories;
         }
-    } catch(e) {}
-    return parseMacCMSXml(content, apiHost);
+    } catch (e) { console.warn("Failed to parse categories from ac=list", e); }
+
+    // 2. 解析视频（从 ac=detail 的响应中提取，确保有图片和播放地址）
+    try {
+        if (detailContent.trim().startsWith('{')) {
+            const data = JSON.parse(detailContent);
+            const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
+            videos = (data.list || []).map((v: any) => mapJsonToMovie(v, apiHost, picDomain));
+        } else {
+            videos = parseMacCMSXml(detailContent, apiHost).videos;
+        }
+    } catch (e) { console.warn("Failed to parse videos from ac=detail", e); }
+
+    return { videos, categories };
   } catch (error) {
     return { videos: [], categories: [] };
   }
 };
 
 /**
- * 搜索视频
- * 关键修改：搜索同样使用 ac=detail 模式，解决搜索结果页图片显示异常的问题。
+ * 搜索视频：使用 ac=detail
  */
 export const searchVideos = async (apiUrl: string, query: string): Promise<Movie[]> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
-    // 使用 ac=detail 模式进行搜索
     const targetUrl = `${apiUrl}${separator}ac=detail&wd=${encodeURIComponent(query)}`;
     const content = await fetchViaProxy(targetUrl);
-    try {
-      if (content.trim().startsWith('{')) {
+    
+    if (content.trim().startsWith('{')) {
         const data = JSON.parse(content);
         const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
         return (data.list || []).map((v: any) => mapJsonToMovie(v, apiHost, picDomain));
-      }
-    } catch (e) {}
+    }
     const { videos } = parseMacCMSXml(content, apiHost);
     return videos;
   } catch (error) {
@@ -249,8 +239,7 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
 };
 
 /**
- * 获取详情
- * 保持原有逻辑不变。
+ * 获取视频详情：使用 ac=detail
  */
 export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Movie | null> => {
   try {
@@ -258,13 +247,12 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
     const separator = apiUrl.includes('?') ? '&' : '?';
     const targetUrl = `${apiUrl}${separator}ac=detail&ids=${ids}`;
     const content = await fetchViaProxy(targetUrl);
-    try {
-        if (content.trim().startsWith('{')) {
-            const data = JSON.parse(content);
-            const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
-            if (data.list && data.list.length > 0) return mapJsonToMovie(data.list[0], apiHost, picDomain);
-        }
-    } catch(e) {}
+    
+    if (content.trim().startsWith('{')) {
+        const data = JSON.parse(content);
+        const picDomain = data.pic_domain || data.vod_pic_domain || undefined;
+        if (data.list && data.list.length > 0) return mapJsonToMovie(data.list[0], apiHost, picDomain);
+    }
     const { videos } = parseMacCMSXml(content, apiHost);
     return videos.length > 0 ? videos[0] : null;
   } catch (error) {
@@ -272,6 +260,9 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
   }
 };
 
+/**
+ * 解析播放链接
+ */
 export const parsePlayUrl = (urlStr: string) => {
   if (!urlStr) return [];
   const playerRawLists = urlStr.split('$$$');
