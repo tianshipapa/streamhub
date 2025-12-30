@@ -323,7 +323,7 @@ const Home: React.FC<HomeProps> = ({
       </nav>
 
       {/* 历史记录 */}
-      {history.length > 0 && !savedState.isDoubanMode && savedState.activeCategoryId === '' && (
+      {history.length > 0 && !savedState.isDoubanMode && (
         <section className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2"><Icon name="history" className="text-blue-500" /> 播放历史</h2>
