@@ -31,6 +31,8 @@ const HLS_CONFIG = {
     nudgeMaxRetry: 10,
 };
 
+const EPISODES_PER_SECTION = 30; // 每段展示集数
+
 const loadScript = (src: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
@@ -150,6 +152,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   // 收藏状态
   const [isFavorited, setIsFavorited] = useState(false);
   
+  // 选集分段状态
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [altSources, setAltSources] = useState<AltSource[]>([]);
@@ -166,6 +171,29 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     playListRef.current = playList;
   }, [playList]);
 
+  // 计算剧集分段
+  const episodeSections = useMemo(() => {
+    if (playList.length <= EPISODES_PER_SECTION) return [];
+    const sections = [];
+    for (let i = 0; i < playList.length; i += EPISODES_PER_SECTION) {
+        const start = i + 1;
+        const end = Math.min(i + EPISODES_PER_SECTION, playList.length);
+        sections.push({ label: `${start}-${end}`, startIdx: i, endIdx: end });
+    }
+    return sections;
+  }, [playList]);
+
+  // 当当前播放 URL 改变时，确保分段导航处于正确位置
+  useEffect(() => {
+    if (playList.length > EPISODES_PER_SECTION && currentUrl) {
+        const idx = playList.findIndex(ep => ep.url === currentUrl);
+        if (idx !== -1) {
+            const sectionIdx = Math.floor(idx / EPISODES_PER_SECTION);
+            setCurrentSectionIndex(sectionIdx);
+        }
+    }
+  }, [currentUrl, playList]);
+
   useEffect(() => {
     const loadDetails = async () => {
       if (!currentSource.api) return;
@@ -176,7 +204,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       // 检查收藏状态
       setIsFavorited(isFavorite(movieId));
 
-      // 实时获取该影片的历史进度信息（改用增强函数，历史被删后可从收藏夹取）
+      // 实时获取该影片的历史进度信息
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem && historyItem.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
 
@@ -193,7 +221,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 setCurrentUrl(found.url);
             } else if (parsedEpisodes.length > 0) {
                 setCurrentUrl(parsedEpisodes[0].url);
-                historyTimeRef.current = 0; // 集数变了，进度归零
+                historyTimeRef.current = 0; 
             }
         } else if (parsedEpisodes.length > 0) {
             setCurrentUrl(parsedEpisodes[0].url);
@@ -302,7 +330,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     finalUrl = URL.createObjectURL(blob);
                     blobUrlRef.current = finalUrl;
                     setCleanStatus(`✅ 安全流就绪`);
-                    // 5秒后清除状态显示
                     cleanTimeoutId = setTimeout(() => {
                         if (isMounted) setCleanStatus('');
                     }, 5000);
@@ -323,7 +350,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             lock: true,
             fastForward: true,
             screenshot: true,
-            playbackRate: true,
+            playbackRate: true, // 倍速支持
             aspectRatio: true,
             fullscreen: true,
             fullscreenWeb: true,
@@ -331,6 +358,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             mutex: true,
             backdrop: true,
             playsInline: true,
+            autoSize: false,
+            autoMini: true,
+            setting: true, // 设置面板
+            pip: true, // 画中画
+            airplay: true, // 投屏 (Apple)
             customType: {
                 m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
                     if (window.Hls.isSupported()) {
@@ -350,7 +382,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         });
         artRef.current = art;
 
-        // 统一进度恢复逻辑：在 ready 事件中寻时
         art.on('ready', () => {
             if (historyTimeRef.current > 5 && !hasAppliedHistorySeek.current) {
                 art.currentTime = historyTimeRef.current;
@@ -448,11 +479,46 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
              </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 h-fit max-h-[600px] flex flex-col shadow-sm">
-            <h3 className="font-bold text-sm mb-4 text-gray-900 dark:text-white flex items-center justify-between"><span className="flex items-center gap-2"><Icon name="playlist_play" className="text-blue-500 text-lg" /> 选集列表</span><span className="text-[10px] text-gray-400">{playList.length} 个视频</span></h3>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 h-fit flex flex-col shadow-sm max-h-[600px]">
+            <h3 className="font-bold text-sm mb-4 text-gray-900 dark:text-white flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                    <Icon name="playlist_play" className="text-blue-500 text-lg" /> 选集列表
+                </span>
+                <span className="text-[10px] text-gray-400">{playList.length} 个视频</span>
+            </h3>
+            
+            {/* 分段导航 - 仅在剧集多时显示 */}
+            {episodeSections.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-3 mb-3 hide-scrollbar">
+                    {episodeSections.map((sec, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setCurrentSectionIndex(idx)}
+                            className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
+                        >
+                            {sec.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="overflow-y-auto pr-1 custom-scrollbar grid grid-cols-2 lg:grid-cols-3 gap-2">
-                {playList.map((ep, index) => (
-                    <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`text-[11px] py-2 rounded-lg transition-all truncate border font-medium ${currentUrl === ep.url ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-50 dark:bg-slate-700/50 text-gray-500 border-gray-200 dark:border-gray-600'}`}>{ep.name}</button>
+                {playList.slice(
+                    episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0,
+                    episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length
+                ).map((ep, index) => (
+                    <button 
+                        key={index} 
+                        onClick={() => { 
+                            if (currentUrl === ep.url) return; 
+                            historyTimeRef.current = 0; 
+                            hasAppliedHistorySeek.current = true; 
+                            setCurrentUrl(ep.url); 
+                        }} 
+                        className={`text-[11px] py-2 rounded-lg transition-all truncate border font-medium ${currentUrl === ep.url ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-50 dark:bg-slate-700/50 text-gray-500 border-gray-200 dark:border-gray-600'}`}
+                    >
+                        {ep.name}
+                    </button>
                 ))}
             </div>
         </div>
