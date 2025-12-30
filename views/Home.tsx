@@ -253,7 +253,17 @@ const Home: React.FC<HomeProps> = ({
           <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><Icon name="history" className="text-blue-500" /> 播放历史</h2><button onClick={() => { if(confirmClear){ clearHistory(); setHistory([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(()=>setConfirmClear(false), 3000); } }} className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"><Icon name={confirmClear ? "warning" : "delete_outline"} className="text-sm" />{confirmClear ? "确认清除" : "清空"}</button></div>
           <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
             {history.slice(0, 10).map(m => (
-                <div key={m.id} className="min-w-[140px] max-w-[140px] relative group"><MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} /><button onClick={(e) => { e.stopPropagation(); removeFromHistory(m.id); setHistory(getHistory()); }} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="close" className="text-xs"/></button></div>
+                <div key={m.id} className="min-w-[140px] max-w-[140px] relative group">
+                    <MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} />
+                    {/* 优化后的删除按钮：高对比度、带阴影、悬停反馈更明显 */}
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); removeFromHistory(m.id); setHistory(getHistory()); }} 
+                        className="absolute top-2 right-2 w-7 h-7 bg-white dark:bg-slate-700 text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg z-20 flex items-center justify-center border border-gray-100 dark:border-gray-600 hover:scale-110 active:scale-95"
+                        title="删除此记录"
+                    >
+                        <Icon name="close" className="text-base font-bold"/>
+                    </button>
+                </div>
             ))}
           </div>
         </section>
