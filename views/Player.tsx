@@ -359,7 +359,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             backdrop: true,
             playsInline: true,
             autoSize: false,
-            autoMini: true,
+            autoMini: false,
             setting: true, // 设置面板
             pip: true, // 画中画
             airplay: true, // 投屏 (Apple)
