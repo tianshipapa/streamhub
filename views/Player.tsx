@@ -362,7 +362,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             autoMini: false,
             setting: true, // 设置面板
             pip: false, // 画中画
-            airplay: true, // 投屏 (Apple)
+            airplay: false, // 投屏 (Apple)
             customType: {
                 m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
                     if (window.Hls.isSupported()) {
