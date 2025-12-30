@@ -57,6 +57,9 @@ const App: React.FC = () => {
   const [defaultSources, setDefaultSources] = useState<Source[]>([]);
   const [customSources, setCustomSources] = useState<Source[]>([]);
   const [currentSource, setCurrentSource] = useState<Source>({ name: '加载中...', api: '' });
+  
+  // 专门用于播放页面的源状态，防止切源污染全局 Home 状态
+  const [playbackSource, setPlaybackSource] = useState<Source | null>(null);
 
   const sources = useMemo(() => [...defaultSources, ...customSources], [defaultSources, customSources]);
 
@@ -96,6 +99,8 @@ const App: React.FC = () => {
   const handleSourceChange = (source: Source) => {
     setCurrentSource(source);
     setLastUsedSourceApi(source.api);
+    // 同时也重置播放源，确保一致性
+    setPlaybackSource(source);
   };
 
   const handleViewChange = (newView: ViewState) => {
@@ -138,14 +143,25 @@ const App: React.FC = () => {
 
   const handleSelectMovie = (movie: Movie) => {
     setSelectedMovieId(movie.id);
-    if (movie.sourceApi && movie.sourceApi !== currentSource.api) {
-        const target = sources.find(s => s.api === movie.sourceApi);
-        if (target) {
-            handleSourceChange(target);
-        } else {
-            const tempSource = { name: movie.sourceName || '资源源', api: movie.sourceApi };
-            handleSourceChange(tempSource);
-        }
+    
+    // 找到该电影对应的源
+    const targetSource = sources.find(s => s.api === movie.sourceApi) || 
+                        (movie.sourceApi ? { name: movie.sourceName || '资源源', api: movie.sourceApi } : null);
+    
+    const activeSource = targetSource || currentSource;
+
+    // 始终更新播放源
+    setPlaybackSource(activeSource);
+
+    /**
+     * 关键逻辑修复：
+     * 如果当前不是在播放页（即从主页或搜索页点击进入），则同步更新全局 currentSource。
+     * 如果当前已经在播放页（即在播放页内部点击“全网切源”），则仅更新 playbackSource，
+     * 不更新全局 currentSource。这样返回主页时，主页仍维持原有的线路和列表状态。
+     */
+    if (currentView !== 'PLAYER' && targetSource && targetSource.api !== currentSource.api) {
+        setCurrentSource(targetSource);
+        setLastUsedSourceApi(targetSource.api);
     }
   };
 
@@ -175,7 +191,7 @@ const App: React.FC = () => {
       case 'SEARCH':
         return <Search setView={handleViewChange} query={searchQuery} onSelectMovie={handleSelectMovie} currentSource={currentSource} sources={sources} onSourceChange={handleSourceChange} savedState={searchViewState} onStateUpdate={updateSearchState} />;
       case 'PLAYER':
-        return <Player setView={handleViewChange} movieId={selectedMovieId} currentSource={currentSource} sources={sources} onSelectMovie={handleSelectMovie} />;
+        return <Player setView={handleViewChange} movieId={selectedMovieId} currentSource={playbackSource || currentSource} sources={sources} onSelectMovie={handleSelectMovie} />;
       default: return null;
     }
   };
