@@ -316,7 +316,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         try {
             let artReady = await waitForGlobal('Artplayer', 3000);
             let hlsReady = await waitForGlobal('Hls', 3000);
-            if (!artReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.2.1/artplayer.js"); artReady = await waitForGlobal('Artplayer', 5000); }
+            if (!artReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.3.0/artplayer.js"); artReady = await waitForGlobal('Artplayer', 5000); }
             if (!hlsReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.20/hls.min.js"); hlsReady = await waitForGlobal('Hls', 5000); }
         } catch (e) { setCleanStatus('系统初始化异常'); return; }
         if (!isMounted) return;
