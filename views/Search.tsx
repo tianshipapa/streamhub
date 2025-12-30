@@ -1,5 +1,5 @@
 
-import React, { useEffect, useLayoutEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Movie, SearchProps } from '../types';
 import MovieCard from '../components/MovieCard';
 import { searchVideos } from '../utils/api';
@@ -16,6 +16,8 @@ const Search: React.FC<SearchProps> = ({
     savedState,
     onStateUpdate
 }) => {
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // 恢复滚动位置
   useLayoutEffect(() => {
     if (!savedState.loading && savedState.scrollY > 0) {
@@ -25,24 +27,30 @@ const Search: React.FC<SearchProps> = ({
     }
   }, [savedState.loading]);
 
-  // 搜索主逻辑：修复聚合失败的核心
+  // 搜索主逻辑
   useEffect(() => {
     if (!query) return;
     if (query === savedState.query && savedState.hasSearched) return;
 
     const doSearch = async () => {
-      // 1. 开始搜索前，仅重置 loading，不要立即清空已有的 results，减少闪烁
+      // 中断正在进行的搜索任务
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
+      // 更新状态开始搜索
       onStateUpdate({ loading: true, query: query });
 
-      // 2. 确定搜索目标 API 列表
+      // 确定搜索目标 API 列表
       let targetApis = savedState.isAggregate 
         ? Array.from(savedState.selectedSourceApis)
         : [currentSource.api];
 
-      // 【强制兜底逻辑】：如果当前模式导致目标源为空，自动尝试加载所有可用源
+      // 强制兜底逻辑
       if (targetApis.length === 0 && sources.length > 0) {
           targetApis = sources.map(s => s.api);
-          // 同步状态，防止下次还为空
           onStateUpdate({ selectedSourceApis: new Set(targetApis) });
       }
 
@@ -51,59 +59,69 @@ const Search: React.FC<SearchProps> = ({
           return;
       }
 
-      // 3. 并行并发请求（使用 allSettled 彻底隔离源之间的错误）
-      const searchTasks = sources
-          .filter(s => targetApis.includes(s.api))
-          .map(async (source) => {
-              try {
-                  const data = await searchVideos(source.api, query);
-                  // 数据清洗：确保基本的 Movie 结构完整
-                  return (data || []).filter(m => m && m.title).map(m => ({
-                      ...m,
-                      sourceApi: source.api,
-                      sourceName: source.name
-                  }));
-              } catch (e) {
-                  console.warn(`[Search] ${source.name} 线路请求中断:`, e);
-                  return [];
-              }
-          });
+      try {
+        // 并行并发请求
+        const searchTasks = sources
+            .filter(s => targetApis.includes(s.api))
+            .map(async (source) => {
+                try {
+                    const data = await searchVideos(source.api, query, signal);
+                    return (data || []).filter(m => m && m.title).map(m => ({
+                        ...m,
+                        sourceApi: source.api,
+                        sourceName: source.name
+                    }));
+                } catch (e: any) {
+                    if (e.name === 'AbortError') throw e;
+                    console.warn(`[Search] ${source.name} 线路请求中断:`, e.message);
+                    return [];
+                }
+            });
 
-      const taskResults = await Promise.allSettled(searchTasks);
-      
-      // 4. 汇总并智能去重
-      const flatResults: Movie[] = [];
-      taskResults.forEach(result => {
-          if (result.status === 'fulfilled') {
-              flatResults.push(...result.value);
-          }
-      });
+        const taskResults = await Promise.allSettled(searchTasks);
+        
+        // 如果信号已中断，不更新状态
+        if (signal.aborted) return;
 
-      // 基于标题和年份的强去重逻辑
-      const resultGroup = new Map<string, Movie>();
-      flatResults.forEach(item => {
-          const titleKey = item.title ? item.title.trim().toLowerCase() : '';
-          const yearKey = item.year || '';
-          const fullKey = `${titleKey}_${yearKey}`;
-          
-          if (titleKey && !resultGroup.has(fullKey)) {
-              resultGroup.set(fullKey, item);
-          }
-      });
-      
-      const uniqueResults = Array.from(resultGroup.values());
+        // 汇总并智能去重
+        const flatResults: Movie[] = [];
+        taskResults.forEach(result => {
+            if (result.status === 'fulfilled') {
+                flatResults.push(...result.value);
+            }
+        });
 
-      // 5. 提交结果
-      onStateUpdate({ 
-          results: uniqueResults, 
-          loading: false, 
-          hasSearched: true 
-      });
+        const resultGroup = new Map<string, Movie>();
+        flatResults.forEach(item => {
+            const titleKey = (item.title || '').trim().toLowerCase();
+            const yearKey = item.year || '';
+            const fullKey = `${titleKey}_${yearKey}`;
+            
+            if (titleKey && !resultGroup.has(fullKey)) {
+                resultGroup.set(fullKey, item);
+            }
+        });
+        
+        const uniqueResults = Array.from(resultGroup.values());
+
+        // 提交结果
+        onStateUpdate({ 
+            results: uniqueResults, 
+            loading: false, 
+            hasSearched: true 
+        });
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error("Search failed:", error);
+          onStateUpdate({ loading: false, hasSearched: true });
+        }
+      }
     };
 
-    // 增加防抖处理，避免输入过程中频繁触发
     const timer = setTimeout(doSearch, 300);
-    return () => clearTimeout(timer);
+    return () => {
+        clearTimeout(timer);
+    };
   }, [query, currentSource.api, savedState.isAggregate, savedState.selectedSourceApis, sources, savedState.hasSearched]);
 
   const handleMovieClick = (movie: Movie) => {
@@ -135,13 +153,24 @@ const Search: React.FC<SearchProps> = ({
   };
 
   const unselectAllToCurrent = () => {
+    // 立即停止当前搜索
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
     onStateUpdate({ 
         selectedSourceApis: new Set([currentSource.api]), 
-        hasSearched: false 
+        isAggregate: false,
+        hasSearched: false,
+        results: [],
+        loading: false
     });
   };
 
   const toggleAggregateMode = () => {
+      // 切换模式时也停止当前搜索
+      if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+      }
       onStateUpdate({ isAggregate: !savedState.isAggregate, hasSearched: false });
   };
 
@@ -152,14 +181,19 @@ const Search: React.FC<SearchProps> = ({
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
              <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">搜索结果: "{query}"</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {savedState.loading ? '全网检索中...' : `已聚合 ${savedState.isAggregate ? savedState.selectedSourceApis.size : '1'} 个源，找到 ${savedState.results.length} 个结果`}
-                </p>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 h-5">
+                    {savedState.loading ? (
+                        <div className="flex items-center gap-2 animate-pulse">
+                            <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            全网检索中...
+                        </div>
+                    ) : `已聚合 ${savedState.isAggregate ? savedState.selectedSourceApis.size : '1'} 个源，找到 ${savedState.results.length} 个结果`}
+                </div>
              </div>
              <div className="flex items-center gap-4">
                 <button 
                     onClick={toggleAggregateMode}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all text-sm font-medium ${savedState.isAggregate ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-full border transition-all text-sm font-bold shadow-sm ${savedState.isAggregate ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/20' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
                 >
                     <Icon name={savedState.isAggregate ? "layers" : "layers_clear"} className="text-lg" />
                     聚合搜索: {savedState.isAggregate ? '开启' : '关闭'}
@@ -167,38 +201,43 @@ const Search: React.FC<SearchProps> = ({
              </div>
           </div>
 
-          <div className={`transition-all duration-300 overflow-hidden ${savedState.isAggregate ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-              <div className="bg-white dark:bg-slate-800/80 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${savedState.isAggregate ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl space-y-4">
                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
                     <span className="text-sm font-bold flex items-center gap-2 text-gray-700 dark:text-gray-200">
                         <Icon name="settings_input_component" className="text-blue-500" />
-                        资源线路管理
+                        线路列表 (选中 {savedState.selectedSourceApis.size} 个)
                     </span>
                     <div className="flex gap-4">
                         <button onClick={selectAllSources} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-bold">选中全部</button>
+                        <div className="w-px h-3 bg-gray-200 dark:bg-gray-700 my-auto"></div>
                         <button onClick={unselectAllToCurrent} className="text-xs text-red-500 hover:underline font-bold">重置当前</button>
                     </div>
                  </div>
-                 <div className="flex flex-wrap gap-2 pt-2">
-                    {sources.map(source => {
-                        const isSelected = savedState.selectedSourceApis.has(source.api);
-                        const isCurrent = currentSource.api === source.api;
-                        return (
-                            <button
-                                key={source.api}
-                                onClick={() => toggleSourceSelection(source.api)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition-all border ${
-                                    isSelected 
-                                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-600 dark:text-blue-400 font-bold' 
-                                    : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'
-                                }`}
-                            >
-                                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-gray-300 dark:bg-gray-600'}`}></span>
-                                {source.name}
-                                {isCurrent && <span className="text-[9px] bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">当前</span>}
-                            </button>
-                        );
-                    })}
+                 
+                 {/* 优化后的滚动条列表 */}
+                 <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar transition-all duration-300">
+                    <div className="flex flex-wrap gap-2 pt-2 pb-1">
+                        {sources.map(source => {
+                            const isSelected = savedState.selectedSourceApis.has(source.api);
+                            const isCurrent = currentSource.api === source.api;
+                            return (
+                                <button
+                                    key={source.api}
+                                    onClick={() => toggleSourceSelection(source.api)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition-all border shadow-sm ${
+                                        isSelected 
+                                        ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-500 text-blue-600 dark:text-blue-400 font-bold' 
+                                        : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                                    }`}
+                                >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-gray-300 dark:bg-gray-600'}`}></span>
+                                    {source.name}
+                                    {isCurrent && <span className={`text-[9px] px-1 rounded ml-1 ${isSelected ? 'bg-blue-600 text-white' : 'bg-blue-100 dark:bg-blue-800 text-blue-600'}`}>当前</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
                  </div>
               </div>
           </div>
@@ -209,22 +248,21 @@ const Search: React.FC<SearchProps> = ({
          {savedState.loading ? (
              <div className="flex flex-col justify-center items-center py-32 space-y-6">
                 <div className="relative">
-                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500/20 border-t-blue-500"></div>
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500/20 border-t-blue-500 shadow-inner"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
                         <Icon name="travel_explore" className="text-blue-500 animate-pulse" />
                     </div>
                 </div>
                 <div className="text-center space-y-2">
-                    <p className="text-lg font-medium text-gray-900 dark:text-white font-bold">深度扫描资源库</p>
-                    {/* Fix: targetApis was a local variable in doSearch. Use state-based values instead for rendering. */}
-                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">正在从 {savedState.isAggregate ? (savedState.selectedSourceApis.size || sources.length) : '1'} 个线路采集数据，请稍后...</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">采集引擎工作中...</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 italic">正在从 {savedState.isAggregate ? (savedState.selectedSourceApis.size || sources.length) : '1'} 个线路采集数据，请稍后...</p>
                 </div>
              </div>
          ) : (
             <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-y-10 gap-x-4 sm:gap-x-6">
                     {savedState.results.map((movie, index) => (
-                    <MovieCard key={`${movie.sourceApi}-${movie.id}-${index}`} movie={movie} viewType="SEARCH" onClick={() => handleMovieClick(movie)} />
+                        <MovieCard key={`${movie.sourceApi}-${movie.id}-${index}`} movie={movie} viewType="SEARCH" onClick={() => handleMovieClick(movie)} />
                     ))}
                 </div>
                 
@@ -233,16 +271,32 @@ const Search: React.FC<SearchProps> = ({
                         <div className="w-24 h-24 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-gray-200 dark:border-gray-700">
                             <Icon name="search_off" className="text-5xl text-gray-300" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">未在所选线路中找到资源</h3>
-                        <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">尝试切换不同的关键词，或者在上方开启“聚合搜索”并勾选更多线路。</p>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">未找到相关资源</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">尝试更换关键词，或者在上方开启“聚合搜索”并勾选更多线路。</p>
                         {!savedState.isAggregate && (
-                            <button onClick={toggleAggregateMode} className="mt-8 px-8 py-3 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95">开启全网聚合检索</button>
+                            <button onClick={toggleAggregateMode} className="mt-8 px-8 py-3 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all shadow-lg active:scale-95">开启全网检索</button>
                         )}
                     </div>
                 )}
             </>
          )}
       </section>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #334155;
+        }
+      `}</style>
     </main>
   );
 };

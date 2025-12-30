@@ -1,3 +1,4 @@
+
 import { Movie, Category, Source } from '../types';
 
 // 代理仅用于 API 请求跨域，不用于图片
@@ -13,24 +14,30 @@ const PROXIES: ProxyConfig[] = [
   { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
 ];
 
-const fetchViaProxy = async (targetUrl: string): Promise<string> => {
+const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSignal): Promise<string> => {
   let lastError = null;
   for (const proxy of PROXIES) {
+    if (externalSignal?.aborted) throw new Error("Aborted");
+    
     try {
       const url = proxy.type === 'query' ? `${proxy.url}${encodeURIComponent(targetUrl)}` : `${proxy.url}${targetUrl}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); 
+      // 聚合搜索时，单个代理不应占用过长时间，缩短至 8 秒
+      const timeoutId = setTimeout(() => controller.abort(), 8000); 
       
+      // Link external signal to this fetch if provided
+      const signal = externalSignal 
+        ? (AbortSignal as any).any ? (AbortSignal as any).any([controller.signal, externalSignal]) : externalSignal
+        : controller.signal;
+
       try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { signal });
         clearTimeout(timeoutId);
         if (response.ok) {
           const text = await response.text();
           if (text && text.trim().length > 0) {
-            // 简单的内容检查，如果是明显的 HTML 错误页则跳过
             if (text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html')) {
                if (!targetUrl.includes('ac=list') && !targetUrl.includes('ac=detail')) {
-                   // 如果不是期待 XML 的 CMS 接口，且返回了 HTML，说明代理可能返回了错误页面
                    throw new Error("Proxy returned HTML instead of data");
                }
             }
@@ -41,10 +48,12 @@ const fetchViaProxy = async (targetUrl: string): Promise<string> => {
         throw new Error(`HTTP status ${response.status}`);
       } catch (e: any) {
         clearTimeout(timeoutId);
+        if (e.name === 'AbortError' && externalSignal?.aborted) throw e;
         lastError = e;
         console.warn(`Proxy ${proxy.url} failed for ${targetUrl}:`, e.message);
       }
     } catch (error: any) {
+      if (error.name === 'AbortError') throw error;
       lastError = error;
     }
   }
@@ -62,26 +71,14 @@ const getBaseHost = (apiUrl: string): string => {
     }
 };
 
-/**
- * 格式化图片 URL：直接提取字段内容，确保不被错误代理。
- */
 const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): string => {
     if (!url) return "";
     let cleaned = url.trim();
-    
-    // 如果已经是完整路径，直接返回。这是修复“不要代理图片”的关键。
     if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
-    
-    // 处理协议相对路径
     if (cleaned.startsWith('//')) return 'https:' + cleaned;
-    
-    // 处理域内相对路径
     const domain = (providedDomain || apiHost).replace(/\/$/, '');
     if (cleaned.startsWith('/')) return domain + cleaned;
-    
-    // 默认尝试拼接
     if (!cleaned.includes('://')) return domain + '/' + cleaned;
-    
     return cleaned;
 };
 
@@ -99,9 +96,6 @@ const sanitizeXml = (xml: string): string => {
               .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
 };
 
-/**
- * 核心数据映射：优先使用原始 vod_pic
- */
 const mapJsonToMovie = (v: any, apiHost: string, picDomain?: string): Movie => ({
     id: (v.vod_id || v.id || '').toString(),
     vod_id: (v.vod_id || v.id || '').toString(),
@@ -189,9 +183,6 @@ export const fetchSources = async (): Promise<Source[]> => {
   }
 };
 
-/**
- * 获取视频列表
- */
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
   try {
     const apiHost = getBaseHost(apiUrl);
@@ -208,7 +199,6 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
     let categories: Category[] = [];
     let videos: Movie[] = [];
 
-    // 1. 解析分类
     if (listContent) {
         try {
             if (listContent.trim().startsWith('{')) {
@@ -223,7 +213,6 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
         } catch (e) { console.warn("Failed to parse categories", e); }
     }
 
-    // 2. 解析视频
     if (detailContent) {
         try {
             if (detailContent.trim().startsWith('{')) {
@@ -242,21 +231,12 @@ export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: 
   }
 };
 
-/**
- * 豆瓣推荐抓取：修复 JSON 解析错误。
- */
 export const fetchDoubanSubjects = async (type: 'movie' | 'tv', tag: string, pageStart: number = 0): Promise<Movie[]> => {
   try {
     const url = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=24&page_start=${pageStart}`;
     const text = await fetchViaProxy(url);
-    if (!text || text.trim().length === 0) return [];
+    if (!text || !text.trim().startsWith('{')) return [];
     
-    // 增加对 JSON 格式的显式检查，防止代理返回 HTML 导致崩溃
-    if (!text.trim().startsWith('{')) {
-        console.error("Douban response is not JSON:", text.substring(0, 100));
-        return [];
-    }
-
     const data = JSON.parse(text);
     if (!data || !data.subjects) return [];
     
@@ -265,25 +245,21 @@ export const fetchDoubanSubjects = async (type: 'movie' | 'tv', tag: string, pag
       title: item.title || '',
       year: '', 
       genre: tag,
-      image: item.cover || '', // 豆瓣图片直连提取
+      image: item.cover || '', 
       rating: parseFloat(item.rate) || 0,
       isDouban: true
     }));
   } catch (e) {
-    console.error("Douban fetch failed:", e);
     return [];
   }
 };
 
-/**
- * 搜索视频
- */
-export const searchVideos = async (apiUrl: string, query: string): Promise<Movie[]> => {
+export const searchVideos = async (apiUrl: string, query: string, signal?: AbortSignal): Promise<Movie[]> => {
   try {
     const apiHost = getBaseHost(apiUrl);
     const separator = apiUrl.includes('?') ? '&' : '?';
     const targetUrl = `${apiUrl}${separator}ac=detail&wd=${encodeURIComponent(query)}`;
-    const content = await fetchViaProxy(targetUrl);
+    const content = await fetchViaProxy(targetUrl, signal);
     
     if (content.trim().startsWith('{')) {
         const data = JSON.parse(content);
@@ -293,13 +269,11 @@ export const searchVideos = async (apiUrl: string, query: string): Promise<Movie
     const { videos } = parseMacCMSXml(content, apiHost);
     return videos;
   } catch (error) {
+    if (error.name === 'AbortError') throw error;
     return [];
   }
 };
 
-/**
- * 获取视频详情
- */
 export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Movie | null> => {
   try {
     const apiHost = getBaseHost(apiUrl);
@@ -319,9 +293,6 @@ export const fetchVideoDetails = async (apiUrl: string, ids: string): Promise<Mo
   }
 };
 
-/**
- * 解析播放链接
- */
 export const parsePlayUrl = (urlStr: string) => {
   if (!urlStr) return [];
   const playerRawLists = urlStr.split('$$$');
