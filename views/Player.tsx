@@ -280,6 +280,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
     let isMounted = true;
+    let cleanTimeoutId: any = null;
+
     const initPlayer = async () => {
         if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
         setCleanStatus('');
@@ -300,6 +302,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     finalUrl = URL.createObjectURL(blob);
                     blobUrlRef.current = finalUrl;
                     setCleanStatus(`✅ 安全流就绪`);
+                    // 5秒后清除状态显示
+                    cleanTimeoutId = setTimeout(() => {
+                        if (isMounted) setCleanStatus('');
+                    }, 5000);
                 } else setCleanStatus('');
             } catch (e) { if (isMounted) setCleanStatus(''); }
         }
@@ -372,6 +378,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     initPlayer();
     return () => {
         isMounted = false;
+        if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
         if (artRef.current) { playbackRateRef.current = artRef.current.playbackRate; artRef.current.destroy(false); artRef.current = null; }
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     };
