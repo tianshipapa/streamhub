@@ -72,7 +72,6 @@ export interface NavProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
   onBack: () => void;
-  // Updated to support optional autoAggregate parameter
   onSearch: (query: string, autoAggregate?: boolean) => void;
 }
 
@@ -80,6 +79,8 @@ export interface PlayerProps {
   setView: (view: ViewState) => void;
   movieId: string;
   currentSource: Source;
+  sources: Source[]; // 新增：所有可用源
+  onSelectMovie: (movie: Movie) => void; // 新增：切换电影逻辑
 }
 
 export interface SearchProps {
@@ -101,8 +102,7 @@ export interface HomeProps {
   onSourceChange: (source: Source) => void;
   onAddCustomSource: (name: string, api: string) => void;
   onRemoveCustomSource: (api: string) => void;
-  // Updated to support optional autoAggregate parameter
-  onSearch: (query: string, autoAggregate?: boolean) => void; // Added to trigger search from Home
+  onSearch: (query: string, autoAggregate?: boolean) => void; 
   savedState: HomeViewState;
   onStateUpdate: (updates: Partial<HomeViewState>) => void;
 }

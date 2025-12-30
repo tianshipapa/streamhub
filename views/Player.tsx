@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState, useRef } from 'react';
-import { ViewState, Movie, PlayerProps } from '../types';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { ViewState, Movie, PlayerProps, Source } from '../types';
 import { Icon } from '../components/Icon';
-import { fetchVideoDetails, parsePlayUrl } from '../utils/api';
-import { getMovieHistory, updateHistoryProgress } from '../utils/storage';
+import { fetchVideoDetails, parsePlayUrl, searchVideos } from '../utils/api';
+import { getMovieHistory, updateHistoryProgress, addToHistory } from '../utils/storage';
 
 declare global {
   interface Window {
@@ -12,33 +12,24 @@ declare global {
   }
 }
 
-// 经过优化的 HLS 缓存配置：大幅增加预加载深度和缓冲区容量
+// 经过优化的 HLS 缓存配置
 const HLS_CONFIG = {
     enableWorker: true,
     lowLatencyMode: false,
-    // 增加初始起播缓冲，防止刚开始播放就卡顿
     startBufferLength: 30, 
-    // 极大增加前向缓冲长度，允许缓存更长时间的内容 (300秒 = 5分钟)
     maxBufferLength: 300, 
-    // 最大缓冲长度上限 (1200秒 = 20分钟)
     maxMaxBufferLength: 1200,
-    // 增大缓冲区内存限制到 512MB，应对高码率视频
     maxBufferSize: 512 * 1024 * 1024,
-    // 增加后向缓冲，防止用户小幅度回退时重新加载
     backBufferLength: 120,
-    // 网络重试与超时控制：更加激进的重试策略
     fragLoadingTimeOut: 30000,
     fragLoadingMaxRetry: 10,
     levelLoadingTimeOut: 30000,
     manifestLoadingTimeOut: 30000,
-    // 允许更大的网络波动容忍度
     maxLoadingDelay: 5,
-    maxBufferHole: 1.0, // 容忍 1 秒以内的内容空洞，防止卡死
+    maxBufferHole: 1.0,
     highBufferWatchdogPeriod: 3,
     nudgeOffset: 0.1,
-    nudgeMaxRetry: 10,  // 卡住时尝试跳过的次数
-    // ABR 自动码率优化
-    abrEwmaDefaultEstimate: 5000000, // 初始预估 5Mbps 
+    nudgeMaxRetry: 10,
 };
 
 const loadScript = (src: string): Promise<void> => {
@@ -142,7 +133,14 @@ const fetchAndCleanM3u8 = async (url: string, depth = 0): Promise<{ content: str
     return { content: newLines.join('\n'), removedCount: segments.length - maxC, log: `已移除 ${segments.length - maxC} 分片` };
 };
 
-const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
+interface AltSource {
+    source: Source;
+    latency: number | null;
+    movie: Movie | null;
+    searching: boolean;
+}
+
+const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, sources, onSelectMovie }) => {
   const [details, setDetails] = useState<Movie | null>(null);
   const [playList, setPlayList] = useState<{name: string, url: string}[]>([]);
   const [currentUrl, setCurrentUrl] = useState<string>('');
@@ -150,6 +148,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
   const [cleanStatus, setCleanStatus] = useState<string>('');
   const [playerRatio, setPlayerRatio] = useState<number>(56.25);
   
+  // 其他源状态
+  const [altSources, setAltSources] = useState<AltSource[]>([]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
   const historyTimeRef = useRef<number>(0);
@@ -198,11 +199,69 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
         } else if (parsedEpisodes.length > 0) {
             setCurrentUrl(parsedEpisodes[0].url);
         }
+
+        // 开始检测其他源
+        detectAltSources(data.title);
       }
       setLoading(false);
     };
     if (movieId) loadDetails();
   }, [movieId, currentSource.api]);
+
+  // 全网切源检测逻辑
+  const detectAltSources = async (title: string) => {
+    const others = sources.filter(s => s.api !== currentSource.api);
+    setAltSources(others.map(s => ({ source: s, latency: null, movie: null, searching: true })));
+
+    others.forEach(async (source) => {
+        const startTime = Date.now();
+        try {
+            const results = await searchVideos(source.api, title);
+            const latency = Date.now() - startTime;
+            
+            // 精确标题匹配或模糊包含
+            const matchedMovie = results.find(m => m.title === title) || 
+                               results.find(m => m.title.includes(title)) ||
+                               null;
+            
+            setAltSources(prev => prev.map(item => 
+                item.source.api === source.api 
+                ? { ...item, latency, movie: matchedMovie, searching: false } 
+                : item
+            ));
+        } catch (e) {
+            setAltSources(prev => prev.map(item => 
+                item.source.api === source.api 
+                ? { ...item, searching: false, movie: null, latency: 9999 } 
+                : item
+            ));
+        }
+    });
+  };
+
+  // 对切源列表进行过滤和排序：仅显示匹配到的资源，并按延迟升序排列
+  const sortedAltSources = useMemo(() => {
+    return altSources
+        .filter(alt => alt.movie || alt.searching) // 过滤掉搜索完成但未找到资源的
+        .sort((a, b) => {
+            // 搜索中的排在后面，已完成的按延迟排序
+            if (a.searching && !b.searching) return 1;
+            if (!a.searching && b.searching) return -1;
+            return (a.latency || 0) - (b.latency || 0);
+        });
+  }, [altSources]);
+
+  const handleAltSourceClick = (alt: AltSource) => {
+    if (alt.movie) {
+        const movieWithSource = {
+            ...alt.movie,
+            sourceApi: alt.source.api,
+            sourceName: alt.source.name
+        };
+        addToHistory(movieWithSource);
+        onSelectMovie(movieWithSource);
+    }
+  };
 
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
@@ -398,7 +457,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                     <div className="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-400 items-center">
                         <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs font-bold">{details.genre}</span>
                         <span>{details.year}</span><span>{details.badge}</span>
-                        {currentSource.name && <span className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded text-xs border border-blue-200 dark:border-blue-800">源: {currentSource.name}</span>}
+                        {currentSource.name && <span className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded text-xs border border-blue-200 dark:border-blue-800 flex items-center gap-1"><Icon name="radio_button_checked" className="text-[10px]" />当前源: {currentSource.name}</span>}
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -413,21 +472,103 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                 </div>
              </div>
              
+             {/* 剧情简介 */}
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Icon name="description" className="text-blue-500" /> 剧情简介</h3>
                 <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300 line-clamp-6">{details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}</p>
              </div>
 
+             {/* 全网切源展示盒 */}
+             <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Icon name="swap_horiz" className="text-blue-500" /> 
+                        全网切源检测
+                    </h3>
+                    <span className="text-[10px] text-gray-400 font-normal">已按响应延迟自动排序</span>
+                </div>
+                
+                <div className="max-h-72 overflow-y-auto pr-1 custom-scrollbar space-y-2.5">
+                    {/* 当前线路固化展示 */}
+                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-800/50 ring-1 ring-blue-500/10">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/20">
+                                <Icon name="play_arrow" />
+                            </div>
+                            <div>
+                                <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{currentSource.name}</div>
+                                <div className="text-[10px] text-blue-500/70">正在播放此线路内容</div>
+                            </div>
+                        </div>
+                        <span className="text-[10px] px-2.5 py-1 bg-blue-600 text-white rounded-full font-bold shadow-sm">当前线路</span>
+                    </div>
+
+                    {/* 排序后的其他线路 */}
+                    {sortedAltSources.map((alt, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => handleAltSourceClick(alt)}
+                            disabled={alt.searching}
+                            className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all relative group ${
+                                alt.searching 
+                                ? 'bg-gray-50/50 dark:bg-slate-800/30 border-gray-100 dark:border-gray-800 cursor-default' 
+                                : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400 hover:shadow-lg dark:hover:bg-slate-800/80 active:scale-[0.98]'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                                    alt.searching 
+                                    ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' 
+                                    : (alt.latency && alt.latency < 500 ? 'bg-green-50 dark:bg-green-900/20 text-green-600' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600')
+                                }`}>
+                                    <Icon name="dns" className="text-lg" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-500 transition-colors">{alt.source.name}</div>
+                                    <div className="text-[10px] text-gray-400 mt-0.5 max-w-[180px] truncate">
+                                        {alt.searching ? '正在深度检索资源...' : (alt.movie ? `匹配资源: ${alt.movie.title}` : '此线路暂无结果')}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-end gap-1.5">
+                                {alt.searching ? (
+                                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    <>
+                                        <div className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                                            alt.latency && alt.latency < 500 
+                                            ? 'text-green-600 bg-green-100/50 dark:bg-green-900/40' 
+                                            : 'text-amber-600 bg-amber-100/50 dark:bg-amber-900/40'
+                                        }`}>
+                                            {alt.latency}ms
+                                        </div>
+                                        <Icon name="arrow_forward_ios" className="text-[10px] text-gray-300 group-hover:text-blue-400 transition-colors" />
+                                    </>
+                                )}
+                            </div>
+                        </button>
+                    ))}
+
+                    {!loading && sortedAltSources.length === 0 && (
+                        <div className="text-center py-10 bg-gray-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-800">
+                            <Icon name="sentiment_dissatisfied" className="text-3xl text-gray-300 mb-2" />
+                            <p className="text-xs text-gray-400 italic">全网检索完毕，暂无其他可切换的匹配线路</p>
+                        </div>
+                    )}
+                </div>
+             </div>
+
              {(details.vod_actor || details.vod_director) && (
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                      {details.vod_director && (
-                         <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                         <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
                              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">导演</span>
                              <span className="text-sm font-medium dark:text-white">{details.vod_director}</span>
                          </div>
                      )}
                      {details.vod_actor && (
-                         <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                         <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
                              <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">主演</span>
                              <span className="text-sm font-medium dark:text-white truncate block">{details.vod_actor}</span>
                          </div>
@@ -441,7 +582,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
                 <span className="flex items-center gap-2"><Icon name="playlist_play" className="text-blue-500" /> 选集列表</span>
                 <span className="text-xs font-normal text-gray-400">{playList.length} 个视频</span>
             </h3>
-            <div className="overflow-y-auto pr-1 hide-scrollbar">
+            <div className="overflow-y-auto pr-1 custom-scrollbar">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {playList.map((ep, index) => (
                         <button 
@@ -466,6 +607,22 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource }) => {
             </div>
         </div>
       </section>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #334155;
+        }
+      `}</style>
     </main>
   );
 };

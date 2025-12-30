@@ -58,7 +58,6 @@ const App: React.FC = () => {
   const [customSources, setCustomSources] = useState<Source[]>([]);
   const [currentSource, setCurrentSource] = useState<Source>({ name: '加载中...', api: '' });
 
-  // 关键修复：使用 useMemo 保证 sources 引用稳定，防止 Search 组件无限重搜
   const sources = useMemo(() => [...defaultSources, ...customSources], [defaultSources, customSources]);
 
   useEffect(() => {
@@ -176,7 +175,7 @@ const App: React.FC = () => {
       case 'SEARCH':
         return <Search setView={handleViewChange} query={searchQuery} onSelectMovie={handleSelectMovie} currentSource={currentSource} sources={sources} onSourceChange={handleSourceChange} savedState={searchViewState} onStateUpdate={updateSearchState} />;
       case 'PLAYER':
-        return <Player setView={handleViewChange} movieId={selectedMovieId} currentSource={currentSource} />;
+        return <Player setView={handleViewChange} movieId={selectedMovieId} currentSource={currentSource} sources={sources} onSelectMovie={handleSelectMovie} />;
       default: return null;
     }
   };
