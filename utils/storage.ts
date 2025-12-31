@@ -12,6 +12,12 @@ const ACCELERATION_ENABLED_KEY = 'streamhub_acceleration_enabled';
 const SKIP_CONFIG_PREFIX = 'streamhub_skip_config_';
 const MAX_HISTORY_ITEMS = 50;
 
+// --- Skip Intro/Outro Types ---
+export interface SkipConfig {
+  intro: number;        // 跳过片头（秒）
+  outroOffset: number;  // 距离结尾跳过（秒）
+}
+
 // --- Helper to get data ---
 const getRawData = (key: string): any[] => {
   try {
@@ -181,17 +187,12 @@ export const setAccelerationConfig = (url: string, enabled: boolean): void => {
     localStorage.setItem(ACCELERATION_ENABLED_KEY, String(enabled));
 };
 
-// --- Skip Intro/Outro Management ---
-export interface SkipConfig {
-  intro: number;
-  outro: number;
-}
-
+// --- Skip Config Management ---
 export const getSkipConfig = (movieId: string): SkipConfig => {
   try {
     const stored = localStorage.getItem(`${SKIP_CONFIG_PREFIX}${movieId}`);
-    return stored ? JSON.parse(stored) : { intro: 0, outro: 0 };
-  } catch (e) { return { intro: 0, outro: 0 }; }
+    return stored ? JSON.parse(stored) : { intro: 0, outroOffset: 0 };
+  } catch (e) { return { intro: 0, outroOffset: 0 }; }
 };
 
 export const setSkipConfig = (movieId: string, config: SkipConfig): void => {
@@ -269,7 +270,9 @@ export const exportFullBackup = () => {
     const skipConfigs: Record<string, any> = {};
     keys.forEach(k => {
       if (k.startsWith(SKIP_CONFIG_PREFIX)) {
-        try { skipConfigs[k] = JSON.parse(localStorage.getItem(k) || ''); } catch(e) {}
+        try {
+          skipConfigs[k] = JSON.parse(localStorage.getItem(k) || '');
+        } catch(e) {}
       }
     });
 
