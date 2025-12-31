@@ -134,6 +134,14 @@ const fetchAndCleanM3u8 = async (url: string, depth = 0): Promise<{ content: str
     return { content: newLines.join('\n'), removedCount: segments.length - maxC, log: `已移除 ${segments.length - maxC} 分片` };
 };
 
+// 辅助函数：生成控制栏按钮HTML
+const getButtonHtml = (label: string, time: number, isActive: boolean, color: string) => {
+    const bg = isActive ? `rgba(${color}, 0.8)` : 'rgba(0,0,0,0.5)';
+    const border = isActive ? `rgba(${color}, 1)` : 'rgba(255,255,255,0.2)';
+    const text = isActive ? `${label} ${Math.floor(time)}s` : label;
+    return `<span style="font-size: 11px; padding: 2px 10px; cursor: pointer; background: ${bg}; border-radius: 4px; border: 1px solid ${border}; color: white; display: inline-block; min-width: 45px; text-align: center; transition: all 0.2s;">${text}</span>`;
+};
+
 interface AltSource {
     source: Source;
     latency: number | null;
@@ -433,30 +441,48 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             },
             controls: [
                 {
+                    name: 'skip-intro',
                     position: 'right',
-                    html: '<span style="font-size: 11px; padding: 2px 10px; cursor: pointer; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; margin-right: 5px;">片头</span>',
+                    html: getButtonHtml('片头', skipConfigRef.current.intro, skipConfigRef.current.intro > 0, '33, 150, 243'),
                     tooltip: '设置当前位置为片头跳过点',
-                    click: function (artInstance: any) {
-                        const time = artInstance.currentTime;
+                    click: function () {
+                        const art = artRef.current;
+                        if (!art) return;
+                        const time = art.currentTime;
                         const config = { ...skipConfigRef.current, intro: time };
                         skipConfigRef.current = config;
                         setSkipConfig(movieId, config);
-                        if (artInstance.notice) artInstance.notice.show = `片头跳过点已设为: ${Math.floor(time)}s`;
+                        
+                        art.controls.update({
+                            name: 'skip-intro',
+                            html: getButtonHtml('片头', time, true, '33, 150, 243')
+                        });
+                        
+                        if (art.notice) art.notice.show = `片头跳过点已设为: ${Math.floor(time)}s`;
                     },
                 },
                 {
+                    name: 'skip-outro',
                     position: 'right',
-                    html: '<span style="font-size: 11px; padding: 2px 10px; cursor: pointer; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; margin-right: 5px;">片尾</span>',
+                    html: getButtonHtml('片尾', skipConfigRef.current.outroOffset, skipConfigRef.current.outroOffset > 0, '255, 152, 0'),
                     tooltip: '设置当前位置为片尾跳过点',
-                    click: function (artInstance: any) {
-                        const time = artInstance.currentTime;
-                        const duration = artInstance.duration || 0;
+                    click: function () {
+                        const art = artRef.current;
+                        if (!art) return;
+                        const time = art.currentTime;
+                        const duration = art.duration || 0;
                         if (duration <= 0) return;
                         const offset = duration - time;
                         const config = { ...skipConfigRef.current, outroOffset: offset };
                         skipConfigRef.current = config;
                         setSkipConfig(movieId, config);
-                        if (artInstance.notice) artInstance.notice.show = `片尾跳过点已设为距结尾: ${Math.floor(offset)}s`;
+                        
+                        art.controls.update({
+                            name: 'skip-outro',
+                            html: getButtonHtml('片尾', offset, true, '255, 152, 0')
+                        });
+
+                        if (art.notice) art.notice.show = `片尾跳过点已设为距结尾: ${Math.floor(offset)}s`;
                     },
                 },
             ],
@@ -499,9 +525,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             // 片尾自动跳过逻辑
             const config = skipConfigRef.current;
             if (config.outroOffset > 0 && duration > 0 && (duration - time) <= config.outroOffset) {
-                // 强制结束触发 ended 事件
-                art.currentTime = duration;
-                if (art.notice) art.notice.show = `自动跳过片尾`;
+                // 如果还未触发结束，手动跳转到结尾触发下一集
+                if (Math.abs(duration - time) > 1) {
+                     art.currentTime = duration;
+                     if (art.notice) art.notice.show = `自动跳过片尾`;
+                }
             }
         });
 
