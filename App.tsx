@@ -69,12 +69,20 @@ const App: React.FC = () => {
   
   const [playbackSource, setPlaybackSource] = useState<Source | null>(null);
 
-  // 完整列表：用于管理和健康检测
+  // 完整列表：用于管理和健康检测（保留所有原始项）
   const allSources = useMemo(() => [...defaultSources, ...customSources], [defaultSources, customSources]);
 
-  // 过滤后的可用列表：用于首页展示、搜索等
+  // 过滤后的可用列表：
+  // 1. 过滤掉被禁用的 API
+  // 2. 自动去重：同一个 API 默认只保留出现的第一个，实现“干净”的展示列表
   const sources = useMemo(() => {
-    return allSources.filter(s => !disabledApis.has(s.api));
+    const seen = new Set<string>();
+    return allSources.filter(s => {
+      if (disabledApis.has(s.api)) return false;
+      if (seen.has(s.api)) return false;
+      seen.add(s.api);
+      return true;
+    });
   }, [allSources, disabledApis]);
 
   useEffect(() => {
@@ -99,7 +107,15 @@ const App: React.FC = () => {
     setDisabledApis(new Set(localDisabled));
     
     const lastApi = getLastUsedSourceApi();
-    const allWorkingSources = [...fetchedSources, ...localCustomSources].filter(s => !localDisabled.includes(s.api));
+    
+    // 初始化时计算一次可用源，用于恢复上次使用的源
+    const seen = new Set<string>();
+    const allWorkingSources = [...fetchedSources, ...localCustomSources].filter(s => {
+        if (localDisabled.includes(s.api)) return false;
+        if (seen.has(s.api)) return false;
+        seen.add(s.api);
+        return true;
+    });
     
     const savedSource = lastApi ? allWorkingSources.find(s => s.api === lastApi) : null;
 
@@ -173,7 +189,7 @@ const App: React.FC = () => {
   const handleAddCustomSource = (name: string, api: string) => {
     const newSource = { name, api, isCustom: true };
     const updated = addCustomSourceToStorage(newSource);
-    setCustomSources([...updated]); // 触发引用更新
+    setCustomSources([...updated]);
     handleSourceChange(newSource);
   };
 
@@ -181,8 +197,9 @@ const App: React.FC = () => {
     const updated = removeCustomSourceFromStorage(api);
     setCustomSources([...updated]);
     if (currentSource.api === api) {
-        const available = [...defaultSources, ...updated].filter(s => !disabledApis.has(s.api));
-        if (available.length > 0) handleSourceChange(available[0]);
+        // 使用更新后的源列表寻找备选
+        const nextSources = [...defaultSources, ...updated].filter(s => !disabledApis.has(s.api));
+        if (nextSources.length > 0) handleSourceChange(nextSources[0]);
     }
   };
 
@@ -190,22 +207,25 @@ const App: React.FC = () => {
     updateAllCustomSources(newCustomSources);
     setCustomSources([...newCustomSources]);
     
-    // 检查当前源是否还在可用列表中
-    const currentStillAvailable = [...defaultSources, ...newCustomSources].some(s => s.api === currentSource.api && !disabledApis.has(s.api));
-    if (!currentStillAvailable) {
-      const available = [...defaultSources, ...newCustomSources].filter(s => !disabledApis.has(s.api));
-      if (available.length > 0) handleSourceChange(available[0]);
+    // 检查当前选中的源是否还在可用列表（非禁用且非重复被过滤）
+    const isCurrentStillInOptimized = sources.some(s => s.api === currentSource.api);
+    if (!isCurrentStillInOptimized) {
+      // 重新从 sources 中取第一个作为默认
+      if (sources.length > 0) handleSourceChange(sources[0]);
     }
   };
 
   const handleUpdateDisabledSources = (newDisabledApisList: string[]) => {
+    // 健康检查完成后，使用最新的失效列表替换旧的
     updateDisabledSourceApis(newDisabledApisList);
     setDisabledApis(new Set(newDisabledApisList));
     
-    // 如果当前选中的源现在被禁用了，则重置为第一个可用的源
+    // 如果当前选中的源现在被禁用了，则重置
     if (newDisabledApisList.includes(currentSource.api)) {
-      const availableSources = [...defaultSources, ...customSources].filter(s => !newDisabledApisList.includes(s.api));
-      if (availableSources.length > 0) handleSourceChange(availableSources[0]);
+       // 这里不能直接用 sources，因为 sources 依赖 disabledApis 状态更新，可能还没反映出来
+       // 手动计算一次新的可用源
+       const nextWorking = allSources.filter(s => !newDisabledApisList.includes(s.api));
+       if (nextWorking.length > 0) handleSourceChange(nextWorking[0]);
     }
   };
 
@@ -230,7 +250,7 @@ const App: React.FC = () => {
           onSelectMovie={handleSelectMovie} 
           currentSource={currentSource} 
           sources={sources} 
-          // @ts-ignore: 我们传递一个额外的 allSources 给 Home 组件用于管理界面
+          // @ts-ignore: 传递全量列表用于后台健康检测
           allSources={allSources}
           onSourceChange={handleSourceChange} 
           onAddCustomSource={handleAddCustomSource} 
