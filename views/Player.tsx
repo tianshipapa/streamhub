@@ -175,9 +175,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const hasAppliedHistorySeek = useRef<boolean>(false);
   const blobUrlRef = useRef<string | null>(null);
   const playbackRateRef = useRef<number>(1);
-  const isWebFullscreenRef = useRef<boolean>(false); // 记录网页全屏状态
-  const isFullscreenRef = useRef<boolean>(false);       // 记录系统全屏状态
+  const isWebFullscreenRef = useRef<boolean>(false);
+  const isFullscreenRef = useRef<boolean>(false);
   const playListRef = useRef<{name: string, url: string}[]>([]);
+  const currentUrlRef = useRef<string>('');
 
   // 片头片尾配置
   const skipConfigRef = useRef<SkipConfig>(getSkipConfig(movieId));
@@ -185,6 +186,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   useEffect(() => {
     playListRef.current = playList;
   }, [playList]);
+
+  useEffect(() => {
+    currentUrlRef.current = currentUrl;
+  }, [currentUrl]);
 
   // 计算剧集分段
   const episodeSections = useMemo(() => {
@@ -198,12 +203,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     return sections;
   }, [playList]);
 
-  // 综合判定加速是否启用
   const effectiveAccEnabled = useMemo(() => {
     return accConfig.enabled || isTempAccelerationEnabled;
   }, [accConfig.enabled, isTempAccelerationEnabled]);
 
-  // 当当前播放 URL 改变时，确保分段导航处于正确位置
   useEffect(() => {
     if (playList.length > EPISODES_PER_SECTION && currentUrl) {
         const idx = playList.findIndex(ep => ep.url === currentUrl);
@@ -214,12 +217,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   }, [currentUrl, playList]);
 
-  // 安全显示通知
   const safeShowNotice = (msg: string) => {
     if (artRef.current && artRef.current.notice) {
-        try {
-            artRef.current.notice.show = msg;
-        } catch (e) {}
+        try { artRef.current.notice.show = msg; } catch (e) {}
     }
   };
 
@@ -230,12 +230,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       setPlayerRatio(56.25);
       hasAppliedHistorySeek.current = false; 
       
-      // 检查收藏状态
       setIsFavorited(isFavorite(movieId));
-      // 获取跳过配置
       skipConfigRef.current = getSkipConfig(movieId);
 
-      // 实时获取该影片的历史进度信息
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem && historyItem.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
 
@@ -245,7 +242,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         const parsedEpisodes = parsePlayUrl(data.vod_play_url || '');
         setPlayList(parsedEpisodes);
         
-        // 如果历史记录中有存储剧集 URL，优先跳转到该集
         if (historyItem?.currentEpisodeUrl) {
             const found = parsedEpisodes.find(ep => ep.url === historyItem.currentEpisodeUrl);
             if (found) {
@@ -313,7 +309,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   };
 
   const toggleTempAcceleration = () => {
-      // 如果全局已经启用了加速，点击开关通常不做任何修改
       if (accConfig.enabled) {
           safeShowNotice('全局加速已开启，无需重复启用');
           return;
@@ -346,35 +341,58 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   const playNextEpisode = () => {
     const list = playListRef.current;
-    const currentIndex = list.findIndex(ep => ep.url === currentUrl);
+    const current = currentUrlRef.current;
+    const currentIndex = list.findIndex(ep => ep.url === current);
     if (currentIndex !== -1 && currentIndex < list.length - 1) {
         const nextEp = list[currentIndex + 1];
         safeShowNotice(`即将播放: ${nextEp.name}`);
         setTimeout(() => { 
             historyTimeRef.current = 0; 
-            hasAppliedHistorySeek.current = true; 
+            hasAppliedHistorySeek.current = true; // 标记已处理seek，避免initVideoReady逻辑再次使用historyTime
             setCurrentUrl(nextEp.url); 
         }, 1500);
     }
   };
 
+  const handleVideoReady = (art: any) => {
+    // 恢复播放进度逻辑
+    if (historyTimeRef.current > 5 && !hasAppliedHistorySeek.current) {
+        art.currentTime = historyTimeRef.current;
+        hasAppliedHistorySeek.current = true;
+        if (art.notice) art.notice.show = `已自动恢复播放进度`;
+    } else {
+        // 片头跳过逻辑
+        const config = skipConfigRef.current;
+        if (config.intro > 1) {
+            art.currentTime = config.intro;
+            if (art.notice) art.notice.show = `已自动跳过片头`;
+        }
+    }
+
+    if (isWebFullscreenRef.current) art.fullscreenWeb = true;
+    if (isFullscreenRef.current) art.fullscreen = true;
+  };
+
+  // 播放器实例清理（仅在 movieId 变化或组件卸载时）
+  useEffect(() => {
+    return () => {
+        if (artRef.current) {
+            artRef.current.destroy(false);
+            artRef.current = null;
+        }
+    };
+  }, [movieId]);
+
+  // 播放核心逻辑：处理 URL 变更，复用实例
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
-    let isMounted = true;
     let cleanTimeoutId: any = null;
+    let isMounted = true;
 
-    const initPlayer = async () => {
+    const playVideo = async () => {
         if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
         setCleanStatus('');
-        try {
-            let artReady = await waitForGlobal('Artplayer', 3000);
-            let hlsReady = await waitForGlobal('Hls', 3000);
-            if (!artReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.3.0/artplayer.js"); artReady = await waitForGlobal('Artplayer', 5000); }
-            if (!hlsReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.20/hls.min.js"); hlsReady = await waitForGlobal('Hls', 5000); }
-        } catch (e) { setCleanStatus('系统初始化异常'); return; }
-        if (!isMounted) return;
         
-        // 处理加速前置链接逻辑
         let finalUrl = currentUrl;
         if (effectiveAccEnabled && accConfig.url) {
             const prefix = accConfig.url.endsWith('/') ? accConfig.url.slice(0, -1) : accConfig.url;
@@ -393,162 +411,157 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     cleanTimeoutId = setTimeout(() => {
                         if (isMounted) setCleanStatus('');
                     }, 5000);
-                } else setCleanStatus('');
+                } else if (isMounted) setCleanStatus('');
             } catch (e) { if (isMounted) setCleanStatus(''); }
         }
+
         if (!isMounted) return;
-        if (artRef.current) artRef.current.destroy(false);
-        const ArtplayerConstructor = window.Artplayer;
-        const art = new ArtplayerConstructor({
-            container: containerRef.current,
-            url: finalUrl,
-            type: 'm3u8',
-            volume: 0.7,
-            autoplay: true,
-            theme: '#2196F3',
-            lang: 'zh-cn',
-            lock: true,
-            fastForward: true,
-            screenshot: false,
-            playbackRate: true,
-            aspectRatio: true,
-            fullscreen: true,
-            fullscreenWeb: true,
-            miniProgressBar: true,
-            mutex: true,
-            backdrop: true,
-            playsInline: true,
-            autoSize: false,
-            autoMini: false,
-            setting: true,
-            pip: false,
-            airplay: false,
-            customType: {
-                m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
-                    if (window.Hls.isSupported()) {
-                        const hls = new window.Hls(HLS_CONFIG);
-                        hls.loadSource(url);
-                        hls.attachMedia(video);
-                        artInstance.hls = hls;
-                        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-                            if (playbackRateRef.current !== 1) artInstance.playbackRate = playbackRateRef.current;
-                            artInstance.play().catch(() => {});
-                        });
-                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        video.src = url;
-                    }
-                }
-            },
-            controls: [
-                {
-                    name: 'skip-intro',
-                    position: 'right',
-                    html: getButtonHtml('片头', skipConfigRef.current.intro, skipConfigRef.current.intro > 0, '33, 150, 243'),
-                    tooltip: '设置当前位置为片头跳过点',
-                    click: function () {
-                        const art = artRef.current;
-                        if (!art) return;
-                        const time = art.currentTime;
-                        const config = { ...skipConfigRef.current, intro: time };
-                        skipConfigRef.current = config;
-                        setSkipConfig(movieId, config);
-                        
-                        art.controls.update({
-                            name: 'skip-intro',
-                            html: getButtonHtml('片头', time, true, '33, 150, 243')
-                        });
-                        
-                        if (art.notice) art.notice.show = `片头跳过点已设为: ${Math.floor(time)}s`;
-                    },
-                },
-                {
-                    name: 'skip-outro',
-                    position: 'right',
-                    html: getButtonHtml('片尾', skipConfigRef.current.outroOffset, skipConfigRef.current.outroOffset > 0, '255, 152, 0'),
-                    tooltip: '设置当前位置为片尾跳过点',
-                    click: function () {
-                        const art = artRef.current;
-                        if (!art) return;
-                        const time = art.currentTime;
-                        const duration = art.duration || 0;
-                        if (duration <= 0) return;
-                        const offset = duration - time;
-                        const config = { ...skipConfigRef.current, outroOffset: offset };
-                        skipConfigRef.current = config;
-                        setSkipConfig(movieId, config);
-                        
-                        art.controls.update({
-                            name: 'skip-outro',
-                            html: getButtonHtml('片尾', offset, true, '255, 152, 0')
-                        });
 
-                        if (art.notice) art.notice.show = `片尾跳过点已设为距结尾: ${Math.floor(offset)}s`;
-                    },
-                },
-            ],
-        });
-        artRef.current = art;
+        try {
+            // 确保依赖加载
+            let artReady = await waitForGlobal('Artplayer', 3000);
+            let hlsReady = await waitForGlobal('Hls', 3000);
+            if (!artReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.3.0/artplayer.js"); artReady = await waitForGlobal('Artplayer', 5000); }
+            if (!hlsReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.20/hls.min.js"); hlsReady = await waitForGlobal('Hls', 5000); }
 
-        art.on('ready', () => {
-            // 恢复播放进度
-            if (historyTimeRef.current > 5 && !hasAppliedHistorySeek.current) {
-                art.currentTime = historyTimeRef.current;
-                hasAppliedHistorySeek.current = true;
-                if (art.notice) art.notice.show = `已自动恢复播放进度`;
+            if (!isMounted) return;
+
+            if (artRef.current) {
+                // 复用实例：切换 URL
+                await artRef.current.switchUrl(finalUrl);
+                handleVideoReady(artRef.current);
             } else {
-                // 如果没有历史进度，检测是否有片头跳过
-                const config = skipConfigRef.current;
-                if (config.intro > 1) {
-                    art.currentTime = config.intro;
-                    if (art.notice) art.notice.show = `已自动跳过片头`;
-                }
+                // 新建实例
+                const ArtplayerConstructor = window.Artplayer;
+                const art = new ArtplayerConstructor({
+                    container: containerRef.current,
+                    url: finalUrl,
+                    type: 'm3u8',
+                    volume: 0.7,
+                    autoplay: true,
+                    theme: '#2196F3',
+                    lang: 'zh-cn',
+                    lock: true,
+                    fastForward: true,
+                    screenshot: false,
+                    playbackRate: true,
+                    aspectRatio: true,
+                    fullscreen: true,
+                    fullscreenWeb: true,
+                    miniProgressBar: true,
+                    mutex: true,
+                    backdrop: true,
+                    playsInline: true,
+                    autoSize: false,
+                    autoMini: false,
+                    setting: true,
+                    pip: false,
+                    airplay: false,
+                    customType: {
+                        m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
+                            if (window.Hls.isSupported()) {
+                                const hls = new window.Hls(HLS_CONFIG);
+                                hls.loadSource(url);
+                                hls.attachMedia(video);
+                                artInstance.hls = hls;
+                                hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                                    if (playbackRateRef.current !== 1) artInstance.playbackRate = playbackRateRef.current;
+                                    artInstance.play().catch(() => {});
+                                });
+                            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                video.src = url;
+                            }
+                        }
+                    },
+                    controls: [
+                        {
+                            name: 'skip-intro',
+                            position: 'right',
+                            html: getButtonHtml('片头', skipConfigRef.current.intro, skipConfigRef.current.intro > 0, '33, 150, 243'),
+                            tooltip: '设置当前位置为片头跳过点',
+                            click: function () {
+                                const art = artRef.current;
+                                if (!art) return;
+                                const time = art.currentTime;
+                                const config = { ...skipConfigRef.current, intro: time };
+                                skipConfigRef.current = config;
+                                setSkipConfig(movieId, config);
+                                
+                                art.controls.update({
+                                    name: 'skip-intro',
+                                    html: getButtonHtml('片头', time, true, '33, 150, 243')
+                                });
+                                
+                                if (art.notice) art.notice.show = `片头跳过点已设为: ${Math.floor(time)}s`;
+                            },
+                        },
+                        {
+                            name: 'skip-outro',
+                            position: 'right',
+                            html: getButtonHtml('片尾', skipConfigRef.current.outroOffset, skipConfigRef.current.outroOffset > 0, '255, 152, 0'),
+                            tooltip: '设置当前位置为片尾跳过点',
+                            click: function () {
+                                const art = artRef.current;
+                                if (!art) return;
+                                const time = art.currentTime;
+                                const duration = art.duration || 0;
+                                if (duration <= 0) return;
+                                const offset = duration - time;
+                                const config = { ...skipConfigRef.current, outroOffset: offset };
+                                skipConfigRef.current = config;
+                                setSkipConfig(movieId, config);
+                                
+                                art.controls.update({
+                                    name: 'skip-outro',
+                                    html: getButtonHtml('片尾', offset, true, '255, 152, 0')
+                                });
+
+                                if (art.notice) art.notice.show = `片尾跳过点已设为距结尾: ${Math.floor(offset)}s`;
+                            },
+                        },
+                    ],
+                });
+                artRef.current = art;
+
+                art.on('ready', () => handleVideoReady(art));
+                art.on('fullscreen', (state: boolean) => { isFullscreenRef.current = state; });
+                art.on('fullscreenWeb', (state: boolean) => { isWebFullscreenRef.current = state; });
+
+                art.on('video:timeupdate', () => {
+                    const time = art.currentTime;
+                    const duration = art.duration;
+
+                    if (time > 5) {
+                        const url = currentUrlRef.current;
+                        const ep = playListRef.current.find(item => item.url === url);
+                        updateHistoryProgress(movieId, time, url, ep?.name);
+                    }
+
+                    const config = skipConfigRef.current;
+                    if (config.outroOffset > 0 && duration > 0 && (duration - time) <= config.outroOffset) {
+                        if (Math.abs(duration - time) > 1) {
+                             art.currentTime = duration;
+                             if (art.notice) art.notice.show = `自动跳过片尾`;
+                        }
+                    }
+                });
+
+                art.on('video:ended', () => {
+                    playNextEpisode();
+                });
             }
-
-            // 恢复全屏/网页全屏设置
-            if (isWebFullscreenRef.current) art.fullscreenWeb = true;
-            if (isFullscreenRef.current) art.fullscreen = true;
-        });
-
-        // 监听全屏状态变更并保存到 Ref
-        art.on('fullscreen', (state: boolean) => { isFullscreenRef.current = state; });
-        art.on('fullscreenWeb', (state: boolean) => { isWebFullscreenRef.current = state; });
-
-        art.on('video:timeupdate', () => {
-            const time = art.currentTime;
-            const duration = art.duration;
-
-            if (time > 5) {
-                const ep = playListRef.current.find(item => item.url === currentUrl);
-                updateHistoryProgress(movieId, time, currentUrl, ep?.name);
-            }
-
-            // 片尾自动跳过逻辑
-            const config = skipConfigRef.current;
-            if (config.outroOffset > 0 && duration > 0 && (duration - time) <= config.outroOffset) {
-                // 如果还未触发结束，手动跳转到结尾触发下一集
-                if (Math.abs(duration - time) > 1) {
-                     art.currentTime = duration;
-                     if (art.notice) art.notice.show = `自动跳过片尾`;
-                }
-            }
-        });
-
-        art.on('video:ended', () => {
-            playNextEpisode();
-        });
+        } catch (e) {
+            setCleanStatus('播放器加载失败');
+        }
     };
-    initPlayer();
+
+    playVideo();
+
     return () => {
         isMounted = false;
         if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
-        if (artRef.current) { 
-            playbackRateRef.current = artRef.current.playbackRate; 
-            isWebFullscreenRef.current = artRef.current.fullscreenWeb;
-            isFullscreenRef.current = artRef.current.fullscreen;
-            artRef.current.destroy(false); 
-            artRef.current = null; 
-        }
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+        // 不再此处销毁播放器，仅清理 blob URL
+        // 播放器销毁移至 movieId 变更的 effect
     };
   }, [currentUrl, movieId, effectiveAccEnabled]);
 
