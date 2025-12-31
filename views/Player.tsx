@@ -167,6 +167,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const hasAppliedHistorySeek = useRef<boolean>(false);
   const blobUrlRef = useRef<string | null>(null);
   const playbackRateRef = useRef<number>(1);
+  const isWebFullscreenRef = useRef<boolean>(false); // 记录网页全屏状态
+  const isFullscreenRef = useRef<boolean>(false);       // 记录系统全屏状态
   const playListRef = useRef<{name: string, url: string}[]>([]);
 
   useEffect(() => {
@@ -350,7 +352,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         if (currentUrl.includes('.m3u8')) {
             try {
                 setCleanStatus('流处理中...');
-                // fetchAndCleanM3u8 使用处理过的 finalUrl 以支持加速
                 const result = await fetchAndCleanM3u8(finalUrl);
                 if (isMounted && result.removedCount > 0) {
                     const blob = new Blob([result.content], { type: 'application/vnd.apple.mpegurl' });
@@ -410,11 +411,27 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         artRef.current = art;
 
         art.on('ready', () => {
+            // 恢复播放进度
             if (historyTimeRef.current > 5 && !hasAppliedHistorySeek.current) {
                 art.currentTime = historyTimeRef.current;
                 hasAppliedHistorySeek.current = true;
                 art.notice.show = `已自动恢复播放进度`;
             }
+            // 恢复全屏/网页全屏设置
+            if (isWebFullscreenRef.current) {
+                art.fullscreenWeb = true;
+            }
+            if (isFullscreenRef.current) {
+                art.fullscreen = true;
+            }
+        });
+
+        // 监听全屏状态变更并保存到 Ref
+        art.on('fullscreen', (state: boolean) => {
+            isFullscreenRef.current = state;
+        });
+        art.on('fullscreenWeb', (state: boolean) => {
+            isWebFullscreenRef.current = state;
         });
 
         art.on('video:timeupdate', () => {
@@ -437,10 +454,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     return () => {
         isMounted = false;
         if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
-        if (artRef.current) { playbackRateRef.current = artRef.current.playbackRate; artRef.current.destroy(false); artRef.current = null; }
+        if (artRef.current) { 
+            playbackRateRef.current = artRef.current.playbackRate; 
+            // 在销毁前记录最后的全屏状态（虽然上面的事件监听已经处理了，但为了万无一失）
+            isWebFullscreenRef.current = artRef.current.fullscreenWeb;
+            isFullscreenRef.current = artRef.current.fullscreen;
+            artRef.current.destroy(false); 
+            artRef.current = null; 
+        }
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     };
-  }, [currentUrl, movieId, effectiveAccEnabled]); // 增加 effectiveAccEnabled 依赖项
+  }, [currentUrl, movieId, effectiveAccEnabled]);
 
   if (loading) return <div className="flex justify-center items-center h-[80vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div></div>;
   if (!details) return <div className="text-center py-20 text-red-500 font-bold">内容加载失败</div>;
