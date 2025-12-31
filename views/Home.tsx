@@ -30,6 +30,7 @@ interface MaintenanceStats {
     total: number;
     cleanedList: Source[];
     deadApis: string[];
+    duplicateApis: string[];
 }
 
 interface ExtendedHomeProps extends HomeProps {
@@ -177,6 +178,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
     const seenApis = new Set<string>();
     const workingSources: Source[] = [];
     const deadApis: string[] = [];
+    const duplicateApis: string[] = [];
     let duplicatesCount = 0;
     let deadCount = 0;
 
@@ -184,8 +186,10 @@ const Home: React.FC<ExtendedHomeProps> = ({
         const s = allSources[i];
         setCheckProgress({ current: i + 1, total: totalToMaintenace, name: `正在检测: ${s.name}` });
 
+        // 重复源处理：默认只保留第一个
         if (seenApis.has(s.api)) {
             duplicatesCount++;
+            duplicateApis.push(s.api);
             continue;
         }
 
@@ -211,7 +215,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
         dead: deadCount,
         total: totalToMaintenace,
         cleanedList: workingSources,
-        deadApis: deadApis
+        deadApis: deadApis,
+        duplicateApis: duplicateApis
     });
     setIsCheckingSources(false);
   };
@@ -222,8 +227,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
       const totalToOptimize = maintenanceStats.duplicates + maintenanceStats.dead;
       
       if (totalToOptimize === 0) {
-          // 如果全部健康，也要更新一次，因为可能修复了之前误报失效的源
-          if (confirm('所有源站均处于健康状态！是否重置屏蔽列表以恢复所有线路？')) {
+          if (confirm('所有源站均处于健康状态且无重复项！是否重置屏蔽列表以确保所有线路均可见？')) {
               onUpdateCustomSources(allSources.filter(s => s.isCustom));
               onUpdateDisabledSources([]);
               setMaintenanceStats(null);
@@ -231,22 +235,25 @@ const Home: React.FC<ExtendedHomeProps> = ({
           return;
       }
 
-      if (confirm(`检测完毕！\n- 发现重复源: ${maintenanceStats.duplicates} 个\n- 发现失效源: ${maintenanceStats.dead} 个\n\n是否确认清理并应用优化后的列表？\n(注：失效的内置源将被屏蔽，失效的自定义源将被移除)`)) {
-          // 1. 处理自定义源：过滤出健康的自定义源
+      if (confirm(`检测完毕！\n- 发现重复源: ${maintenanceStats.duplicates} 个\n- 发现失效源: ${maintenanceStats.dead} 个\n\n是否确认清理并应用优化后的列表？\n(注：失效/重复的内置源将被屏蔽，失效/重复的自定义源将被移除)`)) {
+          // 1. 处理自定义源：仅保留 workingSources 中的自定义源
+          const workingApis = new Set(maintenanceStats.cleanedList.map(s => s.api));
           const healthyCustomList = maintenanceStats.cleanedList.filter(s => s.isCustom);
+          
+          // 2. 批量更新自定义源列表
           onUpdateCustomSources(healthyCustomList);
           
-          // 2. 处理内置源屏蔽：找出不再健康的内置源 API
-          const workingApis = new Set(maintenanceStats.cleanedList.map(s => s.api));
-          // 从 allSources（完整列表）中计算出所有不健康的内置源
-          const allDisabledApis = allSources
-            .filter(s => !s.isCustom && !workingApis.has(s.api))
+          // 3. 处理屏蔽列表 (DisabledSources)
+          // 需要屏蔽的是：1. deadApis 中属于内置源的部分；2. duplicateApis 中属于内置源的部分
+          const allBadApis = new Set([...maintenanceStats.deadApis, ...maintenanceStats.duplicateApis]);
+          const newDisabledApis = allSources
+            .filter(s => !s.isCustom && allBadApis.has(s.api))
             .map(s => s.api);
           
-          onUpdateDisabledSources(allDisabledApis);
+          onUpdateDisabledSources(newDisabledApis);
 
           setMaintenanceStats(null);
-          alert('清理完成，源列表已更新');
+          alert('源列表清理并优化成功！');
       }
   };
 
@@ -365,10 +372,6 @@ const Home: React.FC<ExtendedHomeProps> = ({
 
   const originalTags = savedState.doubanType === 'movie' ? ORIGINAL_MOVIE_TAGS : ORIGINAL_TV_TAGS;
   
-  // 设置页面显示的源列表应基于 allSources（完整列表，包括被屏蔽的）
-  const officialAll = allSources.filter(s => !s.isCustom);
-  const customAll = allSources.filter(s => s.isCustom);
-
   return (
     <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full animate-fadeIn">
       
@@ -412,7 +415,6 @@ const Home: React.FC<ExtendedHomeProps> = ({
                       <><div className="fixed inset-0 z-10" onClick={() => setIsSourceMenuOpen(false)}></div><div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
                         <div className="max-h-96 overflow-y-auto custom-scrollbar">
                             <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase bg-gray-50 dark:bg-slate-900/50">推荐源站</div>
-                            {/* 菜单中只显示“可用”的源 */}
                             {sources.filter(s => !s.isCustom).map((s, idx) => (
                                 <button key={idx} onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center justify-between ${currentSource.api === s.api ? 'text-blue-600 bg-blue-50' : 'text-gray-700 dark:text-gray-200'}`}>
                                     <span className="truncate flex-1 mr-2">{s.name}</span>
@@ -620,7 +622,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         const isCurrentlyWorking = sources.some(work => work.api === s.api);
                         return (
                             <div 
-                                key={idx} 
+                                key={`${s.api}-${idx}`} 
                                 className={`group flex flex-col p-4 rounded-2xl border transition-all ${currentSource.api === s.api ? 'bg-blue-50/30 dark:bg-blue-900/10 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 shadow-sm'} ${!isCurrentlyWorking ? 'opacity-60 border-dashed' : ''}`}
                             >
                                 <div className="flex items-start justify-between mb-3">
@@ -632,7 +634,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                             <div className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                 {s.name}
                                                 {currentSource.api === s.api && <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500 text-white font-bold tracking-tight">正在使用</span>}
-                                                {!isCurrentlyWorking && <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-100 text-red-600 font-bold border border-red-200">已禁用</span>}
+                                                {!isCurrentlyWorking && <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-100 text-red-600 font-bold border border-red-200">已隐藏/失效</span>}
                                             </div>
                                             <div className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">{s.isCustom ? '自定义线路' : '推荐线路'}</div>
                                         </div>
@@ -668,9 +670,9 @@ const Home: React.FC<ExtendedHomeProps> = ({
                     <Icon name="info" className="text-lg" />管理指南
                 </h4>
                 <ul className="text-xs text-blue-600/70 dark:text-blue-400/70 space-y-2 list-disc pl-4">
-                    <li><strong>全量健康检测</strong>：自动扫描列表中包含的所有线路（即使是之前被禁用的线路），识别重复项及失效死链，并将最新健康的列表应用到全局。</li>
-                    <li><strong>图片加载</strong>：本站直接从 `vod_pic` 字段提取图片链接，配合 `no-referrer` 策略突破防盗链限制，不通过任何代理中转，加载更快捷。</li>
-                    <li><strong>恢复默认</strong>：一键清除所有自定义源与禁用记录，应用将回退到官方初始推荐源站配置。</li>
+                    <li><strong>全量健康检测</strong>：扫描全量线路，识别重复项及失效死链，并将最新健康的列表应用到全局。重复源默认只保留第一个出现的。</li>
+                    <li><strong>图片加载</strong>：本站直接从 `vod_pic` 字段提取图片链接，配合 `no-referrer` 策略突破防盗链限制。</li>
+                    <li><strong>恢复默认</strong>：一键清除所有自定义源与屏蔽记录，应用将回退到官方初始推荐配置。</li>
                 </ul>
             </div>
         </section>

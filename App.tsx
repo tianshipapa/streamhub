@@ -173,32 +173,32 @@ const App: React.FC = () => {
   const handleAddCustomSource = (name: string, api: string) => {
     const newSource = { name, api, isCustom: true };
     const updated = addCustomSourceToStorage(newSource);
-    setCustomSources(updated);
+    setCustomSources([...updated]); // 触发引用更新
     handleSourceChange(newSource);
   };
 
   const handleRemoveCustomSource = (api: string) => {
     const updated = removeCustomSourceFromStorage(api);
-    setCustomSources(updated);
+    setCustomSources([...updated]);
     if (currentSource.api === api) {
-        if (updated.length > 0) handleSourceChange(updated[0]);
-        else if (defaultSources.length > 0) handleSourceChange(defaultSources[0]);
+        const available = [...defaultSources, ...updated].filter(s => !disabledApis.has(s.api));
+        if (available.length > 0) handleSourceChange(available[0]);
     }
   };
 
   const handleUpdateCustomSources = (newCustomSources: Source[]) => {
     updateAllCustomSources(newCustomSources);
     setCustomSources([...newCustomSources]);
+    
     // 检查当前源是否还在可用列表中
     const currentStillAvailable = [...defaultSources, ...newCustomSources].some(s => s.api === currentSource.api && !disabledApis.has(s.api));
     if (!currentStillAvailable) {
-      const firstAvailable = [...defaultSources, ...newCustomSources].find(s => !disabledApis.has(s.api));
-      if (firstAvailable) handleSourceChange(firstAvailable);
+      const available = [...defaultSources, ...newCustomSources].filter(s => !disabledApis.has(s.api));
+      if (available.length > 0) handleSourceChange(available[0]);
     }
   };
 
   const handleUpdateDisabledSources = (newDisabledApisList: string[]) => {
-    // 健康检测完成后，应以最新的检测结果为准（覆盖式更新）
     updateDisabledSourceApis(newDisabledApisList);
     setDisabledApis(new Set(newDisabledApisList));
     
