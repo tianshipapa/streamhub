@@ -16,12 +16,12 @@ const Footer: React.FC<FooterProps> = ({ currentView }) => {
              <span className="font-semibold text-gray-900 dark:text-white">StreamHub</span>
            </div>
         ) : (
-           <p className="text-sm text-gray-500 dark:text-gray-400">© 2024 {currentView === 'SEARCH' ? 'VideoHub' : 'StreamHub'}. 保留所有权利。</p>
+           <p className="text-sm text-gray-500 dark:text-gray-400">© 2025 {currentView === 'SEARCH' ? 'VideoHub' : 'StreamHub'}. 保留所有权利。</p>
         )}
         
         {currentView === 'PLAYER' ? (
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            © 2023 StreamHub Inc. 版权所有。
+            © 2025 StreamHub Inc. 版权所有。
           </div>
         ) : (
           <div className="flex space-x-6 text-sm text-gray-500 dark:text-gray-400">
