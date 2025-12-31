@@ -1,7 +1,7 @@
 
 import { Movie, Category, Source } from '../types';
 
-// 代理配置
+// 代理配置仅用于 API 请求
 interface ProxyConfig {
   url: string;
   type: 'append' | 'query';
@@ -14,7 +14,6 @@ const PROXIES: ProxyConfig[] = [
   { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
 ];
 
-// Fix: Exported fetchViaProxy to resolve import error in Home.tsx
 export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSignal): Promise<string> => {
   let lastError = null;
   for (const proxy of PROXIES) {
@@ -27,7 +26,6 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
       
       let signal = controller.signal;
       if (externalSignal) {
-        // 兼容低版本环境
         if ((AbortSignal as any).any) {
           signal = (AbortSignal as any).any([controller.signal, externalSignal]);
         } else {
@@ -41,7 +39,6 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
         if (response.ok) {
           const text = await response.text();
           if (text && text.trim().length > 0) {
-            // 防止代理返回 HTML 报错页
             if (text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html')) {
                if (!targetUrl.includes('ac=list') && !targetUrl.includes('ac=detail')) {
                    throw new Error("Proxy returned HTML instead of data");
@@ -71,14 +68,20 @@ const getBaseHost = (apiUrl: string): string => {
     } catch (e) { return ""; }
 };
 
+// 修复图片加载：直接提取 vod_pic，仅处理相对路径补全，绝不走代理
 const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): string => {
     if (!url) return "";
     let cleaned = url.trim();
+    
+    // 如果是完整链接，直接返回，不走代理
     if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
     if (cleaned.startsWith('//')) return 'https:' + cleaned;
+    
+    // 处理相对路径
     const domain = (providedDomain || apiHost).replace(/\/$/, '');
     if (cleaned.startsWith('/')) return domain + cleaned;
     if (!cleaned.includes('://')) return domain + '/' + cleaned;
+    
     return cleaned;
 };
 
@@ -100,6 +103,7 @@ const mapJsonToMovie = (v: any, apiHost: string, picDomain?: string): Movie => (
     id: (v.vod_id || v.id || '').toString(),
     vod_id: (v.vod_id || v.id || '').toString(),
     title: v.vod_name || v.name || '',
+    // 直接提取图片链接
     image: formatImageUrl(v.vod_pic || v.pic || v.vod_img || v.vod_pic_thumb || '', apiHost, picDomain),
     genre: v.type_name || v.type || '',
     year: v.vod_year || v.year || '',
@@ -270,7 +274,7 @@ export const searchVideos = async (apiUrl: string, query: string, signal?: Abort
     }
     const { videos } = parseMacCMSXml(content, apiHost);
     return videos;
-  } catch (error: any) { // 显式使用 any 类型以通过 Vercel 构建
+  } catch (error: any) {
     if (error?.name === 'AbortError') throw error;
     return [];
   }

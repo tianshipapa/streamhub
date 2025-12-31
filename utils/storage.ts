@@ -4,6 +4,7 @@ import { Movie, Source } from '../types';
 const HISTORY_KEY = 'streamhub_watch_history';
 const FAVORITES_KEY = 'streamhub_favorites';
 const CUSTOM_SOURCES_KEY = 'streamhub_custom_sources';
+const DISABLED_SOURCES_KEY = 'streamhub_disabled_sources';
 const CUSTOM_DOUBAN_TAGS_KEY = 'streamhub_custom_douban_tags';
 const LAST_SOURCE_KEY = 'streamhub_last_source_api';
 const MAX_HISTORY_ITEMS = 50;
@@ -127,6 +128,21 @@ export const getCustomSources = (): Source[] => {
   } catch (e) { return []; }
 };
 
+export const updateAllCustomSources = (sources: Source[]): void => {
+    localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(sources));
+};
+
+export const getDisabledSourceApis = (): string[] => {
+  try {
+    const stored = localStorage.getItem(DISABLED_SOURCES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) { return []; }
+};
+
+export const updateDisabledSourceApis = (apis: string[]): void => {
+  localStorage.setItem(DISABLED_SOURCES_KEY, JSON.stringify(apis));
+};
+
 export const addCustomSourceToStorage = (source: Source): Source[] => {
   const current = getCustomSources();
   if (current.some(s => s.api === source.api)) return current;
@@ -140,6 +156,12 @@ export const removeCustomSourceFromStorage = (api: string): Source[] => {
   const updated = current.filter(s => s.api !== api);
   localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(updated));
   return updated;
+};
+
+export const resetSourcesToDefault = (): void => {
+  localStorage.removeItem(CUSTOM_SOURCES_KEY);
+  localStorage.removeItem(DISABLED_SOURCES_KEY);
+  localStorage.removeItem(LAST_SOURCE_KEY);
 };
 
 // --- Douban Tags ---
@@ -176,13 +198,11 @@ export const setLastUsedSourceApi = (api: string): void => localStorage.setItem(
 
 // --- 备份与还原逻辑 ---
 
-// 获取格式化的时间戳
 const getFormattedTimestamp = () => {
     const now = new Date();
     return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
-// 导出源
 export const exportSourcesData = () => {
     const custom = getCustomSources();
     const data = custom.map(s => ({ name: s.name, url: s.api }));
@@ -195,7 +215,6 @@ export const exportSourcesData = () => {
     URL.revokeObjectURL(url);
 };
 
-// 导入源
 export const importSourcesData = (jsonData: any[]): Source[] => {
     if (!Array.isArray(jsonData)) return getCustomSources();
     const current = getCustomSources();
@@ -211,18 +230,18 @@ export const importSourcesData = (jsonData: any[]): Source[] => {
     return updated;
 };
 
-// 一键备份全部
 export const exportFullBackup = () => {
     const backup = {
         history: getHistory(),
         favorites: getFavorites(),
         customSources: getCustomSources(),
+        disabledSources: getDisabledSourceApis(),
         customDoubanTags: {
             movie: getCustomDoubanTags('movie'),
             tv: getCustomDoubanTags('tv')
         },
         lastSource: getLastUsedSourceApi(),
-        version: '1.0'
+        version: '1.1'
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -233,13 +252,13 @@ export const exportFullBackup = () => {
     URL.revokeObjectURL(url);
 };
 
-// 一键还原全部
 export const importFullBackup = (backup: any) => {
     if (!backup || typeof backup !== 'object') return false;
     try {
         if (backup.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(backup.history));
         if (backup.favorites) localStorage.setItem(FAVORITES_KEY, JSON.stringify(backup.favorites));
         if (backup.customSources) localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(backup.customSources));
+        if (backup.disabledSources) localStorage.setItem(DISABLED_SOURCES_KEY, JSON.stringify(backup.disabledSources));
         if (backup.customDoubanTags) localStorage.setItem(CUSTOM_DOUBAN_TAGS_KEY, JSON.stringify(backup.customDoubanTags));
         if (backup.lastSource) localStorage.setItem(LAST_SOURCE_KEY, backup.lastSource);
         return true;

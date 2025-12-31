@@ -8,20 +8,16 @@ export interface Movie {
   badge?: string;
   badgeColor?: 'black' | 'primary';
   rating?: number;
-  // Fields for API data
   vod_id?: string;
   vod_play_url?: string;
   vod_content?: string;
   vod_actor?: string;
   vod_director?: string;
-  // User data
   currentTime?: number;
   currentEpisodeUrl?: string; 
   currentEpisodeName?: string; 
-  // Aggregate Search Data
   sourceApi?: string;
   sourceName?: string;
-  // Douban specific
   isDouban?: boolean;
 }
 
@@ -38,8 +34,6 @@ export interface Source {
 
 export type ViewState = 'HOME' | 'SEARCH' | 'PLAYER';
 
-// --- State Persistence Interfaces ---
-
 export interface HomeViewState {
   movies: Movie[];
   categories: Category[];
@@ -49,7 +43,6 @@ export interface HomeViewState {
   sourceApi: string; 
   loading: boolean;
   error: boolean;
-  // Douban States
   isDoubanMode: boolean;
   doubanType: 'movie' | 'tv';
   doubanTag: string;
@@ -66,8 +59,6 @@ export interface SearchViewState {
   hasSearched: boolean; 
 }
 
-// --- Props Interfaces ---
-
 export interface NavProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
@@ -79,8 +70,8 @@ export interface PlayerProps {
   setView: (view: ViewState) => void;
   movieId: string;
   currentSource: Source;
-  sources: Source[]; // 新增：所有可用源
-  onSelectMovie: (movie: Movie) => void; // 新增：切换电影逻辑
+  sources: Source[]; 
+  onSelectMovie: (movie: Movie) => void;
 }
 
 export interface SearchProps {
@@ -102,6 +93,9 @@ export interface HomeProps {
   onSourceChange: (source: Source) => void;
   onAddCustomSource: (name: string, api: string) => void;
   onRemoveCustomSource: (api: string) => void;
+  onUpdateCustomSources: (newCustomSources: Source[]) => void;
+  onUpdateDisabledSources: (disabledApis: string[]) => void; // 新增：管理禁用的内置源
+  onResetSources: () => void; // 新增：重置源站
   onSearch: (query: string, autoAggregate?: boolean) => void; 
   savedState: HomeViewState;
   onStateUpdate: (updates: Partial<HomeViewState>) => void;
