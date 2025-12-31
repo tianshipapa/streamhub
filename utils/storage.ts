@@ -9,6 +9,7 @@ const CUSTOM_DOUBAN_TAGS_KEY = 'streamhub_custom_douban_tags';
 const LAST_SOURCE_KEY = 'streamhub_last_source_api';
 const ACCELERATION_URL_KEY = 'streamhub_acceleration_url';
 const ACCELERATION_ENABLED_KEY = 'streamhub_acceleration_enabled';
+const SKIP_CONFIG_PREFIX = 'streamhub_skip_config_';
 const MAX_HISTORY_ITEMS = 50;
 
 // --- Helper to get data ---
@@ -180,6 +181,23 @@ export const setAccelerationConfig = (url: string, enabled: boolean): void => {
     localStorage.setItem(ACCELERATION_ENABLED_KEY, String(enabled));
 };
 
+// --- Skip Intro/Outro Management ---
+export interface SkipConfig {
+  intro: number;
+  outro: number;
+}
+
+export const getSkipConfig = (movieId: string): SkipConfig => {
+  try {
+    const stored = localStorage.getItem(`${SKIP_CONFIG_PREFIX}${movieId}`);
+    return stored ? JSON.parse(stored) : { intro: 0, outro: 0 };
+  } catch (e) { return { intro: 0, outro: 0 }; }
+};
+
+export const setSkipConfig = (movieId: string, config: SkipConfig): void => {
+  localStorage.setItem(`${SKIP_CONFIG_PREFIX}${movieId}`, JSON.stringify(config));
+};
+
 // --- Douban Tags ---
 export const getCustomDoubanTags = (type: 'movie' | 'tv'): string[] => {
   try {
@@ -247,6 +265,14 @@ export const importSourcesData = (jsonData: any[]): Source[] => {
 };
 
 export const exportFullBackup = () => {
+    const keys = Object.keys(localStorage);
+    const skipConfigs: Record<string, any> = {};
+    keys.forEach(k => {
+      if (k.startsWith(SKIP_CONFIG_PREFIX)) {
+        try { skipConfigs[k] = JSON.parse(localStorage.getItem(k) || ''); } catch(e) {}
+      }
+    });
+
     const backup = {
         history: getHistory(),
         favorites: getFavorites(),
@@ -257,6 +283,7 @@ export const exportFullBackup = () => {
             tv: getCustomDoubanTags('tv')
         },
         acceleration: getAccelerationConfig(),
+        skipConfigs: skipConfigs,
         lastSource: getLastUsedSourceApi(),
         version: '1.2'
     };
@@ -281,6 +308,11 @@ export const importFullBackup = (backup: any) => {
         if (backup.acceleration) {
             localStorage.setItem(ACCELERATION_URL_KEY, backup.acceleration.url);
             localStorage.setItem(ACCELERATION_ENABLED_KEY, String(backup.acceleration.enabled));
+        }
+        if (backup.skipConfigs) {
+          Object.entries(backup.skipConfigs).forEach(([k, v]) => {
+            localStorage.setItem(k, JSON.stringify(v));
+          });
         }
         return true;
     } catch (e) {

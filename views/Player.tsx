@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ViewState, Movie, PlayerProps, Source } from '../types';
 import { Icon } from '../components/Icon';
 import { fetchVideoDetails, parsePlayUrl, searchVideos } from '../utils/api';
-import { getMovieProgress, updateHistoryProgress, addToHistory, isFavorite, toggleFavorite, getAccelerationConfig } from '../utils/storage';
+import { getMovieProgress, updateHistoryProgress, addToHistory, isFavorite, toggleFavorite, getAccelerationConfig, getSkipConfig, setSkipConfig, SkipConfig } from '../utils/storage';
 
 declare global {
   interface Window {
@@ -167,15 +167,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const hasAppliedHistorySeek = useRef<boolean>(false);
   const blobUrlRef = useRef<string | null>(null);
   const playbackRateRef = useRef<number>(1);
-  const isWebFullscreenRef = useRef<boolean>(false); // 记录网页全屏状态
-  const isFullscreenRef = useRef<boolean>(false);       // 记录系统全屏状态
+  const isWebFullscreenRef = useRef<boolean>(false);
+  const isFullscreenRef = useRef<boolean>(false);
   const playListRef = useRef<{name: string, url: string}[]>([]);
+
+  // 跳过片头片尾配置
+  const skipConfigRef = useRef<SkipConfig>(getSkipConfig(movieId));
 
   useEffect(() => {
     playListRef.current = playList;
   }, [playList]);
 
-  // 计算剧集分段
   const episodeSections = useMemo(() => {
     if (playList.length <= EPISODES_PER_SECTION) return [];
     const sections = [];
@@ -187,12 +189,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     return sections;
   }, [playList]);
 
-  // 综合判定加速是否启用
   const effectiveAccEnabled = useMemo(() => {
     return accConfig.enabled || isTempAccelerationEnabled;
   }, [accConfig.enabled, isTempAccelerationEnabled]);
 
-  // 当当前播放 URL 改变时，确保分段导航处于正确位置
   useEffect(() => {
     if (playList.length > EPISODES_PER_SECTION && currentUrl) {
         const idx = playList.findIndex(ep => ep.url === currentUrl);
@@ -210,10 +210,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       setPlayerRatio(56.25);
       hasAppliedHistorySeek.current = false; 
       
-      // 检查收藏状态
       setIsFavorited(isFavorite(movieId));
+      skipConfigRef.current = getSkipConfig(movieId);
 
-      // 实时获取该影片的历史进度信息
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem && historyItem.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
 
@@ -223,7 +222,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         const parsedEpisodes = parsePlayUrl(data.vod_play_url || '');
         setPlayList(parsedEpisodes);
         
-        // 如果历史记录中有存储剧集 URL，优先跳转到该集
         if (historyItem?.currentEpisodeUrl) {
             const found = parsedEpisodes.find(ep => ep.url === historyItem.currentEpisodeUrl);
             if (found) {
@@ -293,7 +291,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   };
 
   const toggleTempAcceleration = () => {
-      // 如果全局已经启用了加速，点击开关通常不做任何修改（按用户需求说明：如果全局的播放前置启用就不做前置链接，这里理解为点击开关对已全局启用的无效）
       if (accConfig.enabled) {
           if (artRef.current) artRef.current.notice.show = '全局加速已开启，无需重复启用';
           return;
@@ -326,6 +323,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     } catch (err) {}
   };
 
+  const skipToNext = () => {
+    const list = playListRef.current;
+    const currentIndex = list.findIndex(ep => ep.url === currentUrl);
+    if (currentIndex !== -1 && currentIndex < list.length - 1) {
+        const nextEp = list[currentIndex + 1];
+        if (artRef.current) artRef.current.notice.show = `即将播放: ${nextEp.name}`;
+        setTimeout(() => { 
+            historyTimeRef.current = 0; 
+            hasAppliedHistorySeek.current = true; 
+            setCurrentUrl(nextEp.url); 
+        }, 1000);
+    }
+  };
+
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
     let isMounted = true;
@@ -342,7 +353,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         } catch (e) { setCleanStatus('系统初始化异常'); return; }
         if (!isMounted) return;
         
-        // 处理加速前置链接逻辑
         let finalUrl = currentUrl;
         if (effectiveAccEnabled && accConfig.url) {
             const prefix = accConfig.url.endsWith('/') ? accConfig.url.slice(0, -1) : accConfig.url;
@@ -407,6 +417,32 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     }
                 }
             },
+            controls: [
+                {
+                    position: 'right',
+                    html: '<span style="font-size: 11px; padding: 0 8px; cursor: pointer; background: rgba(0,0,0,0.5); border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);">片头</span>',
+                    tooltip: '记为片头',
+                    click: function (artInstance: any) {
+                        const time = artInstance.currentTime;
+                        const config = { ...skipConfigRef.current, intro: time };
+                        skipConfigRef.current = config;
+                        setSkipConfig(movieId, config);
+                        artInstance.notice.show = `片头时间点已记为: ${Math.floor(time)}s`;
+                    },
+                },
+                {
+                    position: 'right',
+                    html: '<span style="font-size: 11px; padding: 0 8px; cursor: pointer; background: rgba(0,0,0,0.5); border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);">片尾</span>',
+                    tooltip: '记为片尾',
+                    click: function (artInstance: any) {
+                        const time = artInstance.currentTime;
+                        const config = { ...skipConfigRef.current, outro: time };
+                        skipConfigRef.current = config;
+                        setSkipConfig(movieId, config);
+                        artInstance.notice.show = `片尾时间点已记为: ${Math.floor(time)}s`;
+                    },
+                },
+            ],
         });
         artRef.current = art;
 
@@ -416,38 +452,33 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 art.currentTime = historyTimeRef.current;
                 hasAppliedHistorySeek.current = true;
                 art.notice.show = `已自动恢复播放进度`;
+            } else if (skipConfigRef.current.intro > 0) {
+                // 如果没有历史记录且有片头记录，自动跳到片头
+                art.currentTime = skipConfigRef.current.intro;
+                art.notice.show = `已自动跳过片头`;
             }
-            // 恢复全屏/网页全屏设置
-            if (isWebFullscreenRef.current) {
-                art.fullscreenWeb = true;
-            }
-            if (isFullscreenRef.current) {
-                art.fullscreen = true;
-            }
+            
+            if (isWebFullscreenRef.current) art.fullscreenWeb = true;
+            if (isFullscreenRef.current) art.fullscreen = true;
         });
 
-        // 监听全屏状态变更并保存到 Ref
-        art.on('fullscreen', (state: boolean) => {
-            isFullscreenRef.current = state;
-        });
-        art.on('fullscreenWeb', (state: boolean) => {
-            isWebFullscreenRef.current = state;
-        });
+        art.on('fullscreen', (state: boolean) => { isFullscreenRef.current = state; });
+        art.on('fullscreenWeb', (state: boolean) => { isWebFullscreenRef.current = state; });
 
         art.on('video:timeupdate', () => {
-            if (art.currentTime > 5) {
+            const time = art.currentTime;
+            // 进度保存
+            if (time > 5) {
                 const ep = playListRef.current.find(item => item.url === currentUrl);
-                updateHistoryProgress(movieId, art.currentTime, currentUrl, ep?.name);
+                updateHistoryProgress(movieId, time, currentUrl, ep?.name);
+            }
+            // 片尾跳过逻辑
+            if (skipConfigRef.current.outro > 0 && time >= skipConfigRef.current.outro) {
+                art.currentTime = art.duration; // 触发播放结束逻辑
             }
         });
         art.on('video:ended', () => {
-            const list = playListRef.current;
-            const currentIndex = list.findIndex(ep => ep.url === currentUrl);
-            if (currentIndex !== -1 && currentIndex < list.length - 1) {
-                const nextEp = list[currentIndex + 1];
-                art.notice.show = `即将播放: ${nextEp.name}`;
-                setTimeout(() => { historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(nextEp.url); }, 1500);
-            }
+            skipToNext();
         });
     };
     initPlayer();
@@ -456,7 +487,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
         if (artRef.current) { 
             playbackRateRef.current = artRef.current.playbackRate; 
-            // 在销毁前记录最后的全屏状态（虽然上面的事件监听已经处理了，但为了万无一失）
             isWebFullscreenRef.current = artRef.current.fullscreenWeb;
             isFullscreenRef.current = artRef.current.fullscreen;
             artRef.current.destroy(false); 
@@ -546,7 +576,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             
             <p className="text-[9px] text-gray-400 mb-4">{playList.length} 个视频内容</p>
 
-            {/* 分段导航 - 仅在剧集多时显示 */}
             {episodeSections.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-3 mb-3 hide-scrollbar">
                     {episodeSections.map((sec, idx) => (
