@@ -85,7 +85,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
   // 导入导出相关的状态
   const sourceFileRef = useRef<HTMLInputElement>(null);
   const backupFileRef = useRef<HTMLInputElement>(null);
-  const [remoteSourceUrl, setRemoteSourceUrl] = useState('');
+  const [remoteSourceUrl, setRemoteSourceUrl] = useState('https://lunatvz.wofuck.dpdns.org/?format=1&source=jingjian&prefix=https://cfkua.wokaotianshi.eu.org/');
   const [remoteBackupUrl, setRemoteBackupUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
