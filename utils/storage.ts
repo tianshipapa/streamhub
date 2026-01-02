@@ -250,16 +250,43 @@ export const exportSourcesData = () => {
     URL.revokeObjectURL(url);
 };
 
-export const importSourcesData = (jsonData: any[]): Source[] => {
-    if (!Array.isArray(jsonData)) return getCustomSources();
+export const importSourcesData = (jsonData: any): Source[] => {
     const current = getCustomSources();
     const newSources: Source[] = [];
-    jsonData.forEach(item => {
-        const api = item.url || item.api;
-        if (api && item.name && !current.some(s => s.api === api)) {
-            newSources.push({ name: item.name, api: api, isCustom: true });
+    // 使用 Set 加速去重检查
+    const seenApis = new Set(current.map(s => s.api));
+
+    // 通用添加方法
+    const addSource = (name: any, api: any) => {
+        if (name && api && typeof name === 'string' && typeof api === 'string') {
+            const cleanApi = api.trim();
+            if (cleanApi && !seenApis.has(cleanApi)) {
+                newSources.push({ name: name.trim(), api: cleanApi, isCustom: true });
+                seenApis.add(cleanApi);
+            }
         }
-    });
+    };
+
+    if (Array.isArray(jsonData)) {
+        // 兼容标准数组格式 [{name: "...", api: "..."}] 或 [{name: "...", url: "..."}]
+        jsonData.forEach(item => {
+            const api = item.url || item.api;
+            addSource(item.name, api);
+        });
+    } else if (typeof jsonData === 'object' && jsonData !== null) {
+        // 兼容特殊对象格式 { api_site: { "key": { name: "...", api: "..." } } }
+        // 例如：https://lunatvz.wofuck.dpdns.org/?format=0&source=jingjian
+        if (jsonData.api_site && typeof jsonData.api_site === 'object') {
+             Object.values(jsonData.api_site).forEach((val: any) => {
+                 if (val) {
+                     addSource(val.name, val.api);
+                 }
+             });
+        }
+    }
+
+    if (newSources.length === 0) return current;
+
     const updated = [...current, ...newSources];
     localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(updated));
     return updated;
