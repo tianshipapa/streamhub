@@ -31,11 +31,10 @@ const HLS_CONFIG = {
     nudgeMaxRetry: 10,
 };
 
-const EPISODES_PER_SECTION = 30;
+const EPISODES_PER_SECTION = 20;
 
 const loadScript = (src: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-        // 防止重复加载脚本
         if (document.querySelector(`script[src="${src}"]`)) {
             resolve();
             return;
@@ -146,16 +145,32 @@ const getButtonHtml = (label: string, time: number, isActive: boolean, color: st
     return `<span style="font-size: 11px; padding: 2px 10px; cursor: pointer; background: ${bg}; border-radius: 4px; border: 1px solid ${border}; color: white; display: inline-block; min-width: 45px; text-align: center; transition: all 0.2s;">${text}</span>`;
 };
 
-// --- 生成选集列表的 HTML (优化版) ---
-const generateEpisodeLayerHtml = (list: {name: string, url: string}[], current: string) => {
+// --- 生成选集列表的 HTML (优化版，移除顶部标题栏) ---
+const generateEpisodeLayerHtml = (list: {name: string, url: string}[], current: string, sectionIndex: number) => {
     if (!list || list.length === 0) return '<div style="color:#aaa;text-align:center;padding:20px;">暂无选集</div>';
+    
+    const totalSections = Math.ceil(list.length / EPISODES_PER_SECTION);
+    const safeSectionIndex = Math.max(0, Math.min(sectionIndex, totalSections - 1));
+    const startIdx = safeSectionIndex * EPISODES_PER_SECTION;
+    const endIdx = Math.min((safeSectionIndex + 1) * EPISODES_PER_SECTION, list.length);
+    const currentList = list.slice(startIdx, endIdx);
+
+    let tabsHtml = '';
+    if (totalSections > 1) {
+         tabsHtml = `<div class="art-ep-tabs custom-scrollbar">
+            ${Array.from({length: totalSections}).map((_, idx) => {
+                const isActive = idx === safeSectionIndex;
+                const start = idx * EPISODES_PER_SECTION + 1;
+                const end = Math.min((idx + 1) * EPISODES_PER_SECTION, list.length);
+                return `<div class="art-ep-tab ${isActive ? 'active' : ''}" data-index="${idx}">${start}-${end}</div>`;
+            }).join('')}
+        </div>`;
+    }
+
     return `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);">
-            <span style="font-size:16px;font-weight:bold;color:white;">选集 (${list.length})</span>
-            <span class="art-ep-close" style="font-size:20px;color:#aaa;line-height:1;cursor:pointer;">✕</span>
-        </div>
-        <div class="custom-scrollbar" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(80px, 1fr));gap:8px;overflow-y:auto;flex:1;padding-right:5px;align-content:start;">
-            ${list.map(ep => `
+        ${tabsHtml}
+        <div class="art-ep-list custom-scrollbar">
+            ${currentList.map(ep => `
                 <div class="art-ep-item ${ep.url === current ? 'active' : ''}" data-url="${ep.url}" title="${ep.name}">
                     ${ep.name}
                 </div>
@@ -198,6 +213,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const playListRef = useRef<{name: string, url: string}[]>([]);
   const currentUrlRef = useRef<string>('');
   const skipConfigRef = useRef<SkipConfig>({ intro: 0, outroOffset: 0 });
+  const episodeLayerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     playListRef.current = playList;
@@ -206,6 +222,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   useEffect(() => {
     currentUrlRef.current = currentUrl;
   }, [currentUrl]);
+
+  // 更新选集图层内容
+  useEffect(() => {
+    const updateLayer = () => {
+         const html = generateEpisodeLayerHtml(playList, currentUrl, currentSectionIndex);
+         if (episodeLayerRef.current) {
+             episodeLayerRef.current.innerHTML = html;
+         } else if (artRef.current && artRef.current.template) {
+             const el = artRef.current.template.$container.querySelector('.art-ep-layer-box');
+             if (el) el.innerHTML = html;
+         }
+    };
+    updateLayer();
+  }, [playList, currentUrl, currentSectionIndex]);
 
   const episodeSections = useMemo(() => {
     if (playList.length <= EPISODES_PER_SECTION) return [];
@@ -415,10 +445,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
             if (artRef.current) {
                 await artRef.current.switchUrl(finalUrl);
-                // 切换URL时，同时更新选集图层的高亮状态
-                const layerEl = artRef.current.template.$container.querySelector('.art-ep-layer-box');
-                if (layerEl) {
-                    layerEl.innerHTML = generateEpisodeLayerHtml(playListRef.current, currentUrl);
+                // 切换URL时，同时更新选集图层
+                if (episodeLayerRef.current) {
+                    episodeLayerRef.current.innerHTML = generateEpisodeLayerHtml(playListRef.current, currentUrl, currentSectionIndex);
                 }
                 handleVideoReady(artRef.current);
             } else {
@@ -428,6 +457,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     url: finalUrl,
                     type: 'm3u8',
                     volume: 0.7,
+                    poster: details?.image, // 修复图片加载：使用提取的 vod_pic
                     autoplay: true,
                     theme: '#2196F3',
                     lang: 'zh-cn',
@@ -466,35 +496,44 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     layers: [
                         {
                             name: 'episode-layer',
-                            html: generateEpisodeLayerHtml(playListRef.current, currentUrl),
-                            class: 'art-ep-layer-box', // 添加特定class方便查找
+                            html: generateEpisodeLayerHtml(playListRef.current, currentUrl, currentSectionIndex),
+                            class: 'art-ep-layer-box',
                             style: {
                                 display: 'none',
                                 position: 'absolute',
                                 top: '0',
                                 right: '0',
-                                bottom: '0',
+                                bottom: '60px', 
                                 width: '300px',
                                 maxWidth: '80%',
                                 backgroundColor: 'rgba(20, 20, 20, 0.95)',
                                 backdropFilter: 'blur(10px)',
-                                zIndex: 110,
+                                zIndex: 200, 
                                 flexDirection: 'column',
                                 padding: '20px',
-                                overflowY: 'hidden', // 使用 flex column 布局，内容区滚动
+                                overflow: 'hidden',
                                 transform: 'translateX(0)',
                                 borderLeft: '1px solid rgba(255,255,255,0.1)'
                             },
                             mounted: function($el: HTMLElement) {
-                                // 使用事件委托处理点击
+                                episodeLayerRef.current = $el;
                                 $el.addEventListener('click', (e) => {
                                     const target = e.target as HTMLElement;
-                                    const closeBtn = target.closest('.art-ep-close');
                                     const item = target.closest('.art-ep-item');
+                                    const tab = target.closest('.art-ep-tab');
                                     
-                                    if (closeBtn || target === $el) {
+                                    if (target === $el) {
                                          $el.style.display = 'none';
                                          return;
+                                    }
+
+                                    // 处理分页标签点击
+                                    if (tab) {
+                                        const idx = Number((tab as HTMLElement).dataset.index);
+                                        if (!isNaN(idx)) {
+                                            setCurrentSectionIndex(idx);
+                                        }
+                                        return;
                                     }
                                     
                                     if (item) {
@@ -559,17 +598,22 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         {
                             name: 'show-episodes',
                             position: 'right',
-                            html: `<div style="display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.1);color:white;transition:all 0.2s;">选集</div>`,
+                            html: `<div style="display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.15);color:white;transition:all 0.2s;">选集</div>`,
                             tooltip: '选集列表',
                             click: function () {
                                 const art = artRef.current;
-                                if (!art) return;
-                                // 通过 class 直接查找 DOM 元素，比 art.layers.find 更可靠
-                                const layerEl = art.template.$container.querySelector('.art-ep-layer-box');
-                                if (layerEl) {
-                                     // 确保内容是最新的
-                                     layerEl.innerHTML = generateEpisodeLayerHtml(playListRef.current, currentUrlRef.current);
-                                     layerEl.style.display = 'flex';
+                                let layer = episodeLayerRef.current;
+                                
+                                if (!layer && art && art.template) {
+                                    layer = art.template.$container.querySelector('.art-ep-layer-box');
+                                }
+
+                                if (layer) {
+                                    if (layer.style.display === 'none' || !layer.style.display) {
+                                        layer.style.display = 'flex';
+                                    } else {
+                                        layer.style.display = 'none';
+                                    }
                                 }
                             }
                         }
@@ -625,12 +669,66 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     <main className="container mx-auto px-4 py-6 space-y-8 animate-fadeIn relative">
        {/* 注入播放器相关样式 */}
        <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+        /* 滚动条样式优化 */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+        
         .art-control-volume { display: none !important; }
         
-        /* 选集列表样式 */
+        /* 选集列表样式系统 */
+        .art-ep-layer-box {
+            display: flex !important;
+            flex-direction: column;
+        }
+
+        /* 标签栏 - 水平滚动 */
+        .art-ep-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+            margin-top: 0; /* 移除顶部外边距，因为现在是第一个元素 */
+            flex-shrink: 0;
+            white-space: nowrap;
+            scroll-behavior: smooth;
+        }
+        .art-ep-tab {
+            cursor: pointer;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            background: rgba(255,255,255,0.1);
+            color: #aaa;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .art-ep-tab:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .art-ep-tab.active {
+            background: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+
+        /* 列表区域 - 垂直滚动 + 响应式栅格 */
+        .art-ep-list {
+            display: grid;
+            gap: 8px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0; /* 关键：允许Flex子项内部滚动 */
+            padding-right: 4px;
+            align-content: start;
+            /* 默认桌面端尺寸 */
+            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+        }
         .art-ep-item {
             cursor: pointer;
             padding: 8px 5px;
@@ -654,8 +752,32 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             color: white;
             border-color: #2196F3;
         }
-        .art-ep-close:hover {
-            color: white !important;
+
+        /* 移动端/小屏适配 (宽度 < 500px) */
+        @media (max-width: 500px) {
+            .art-ep-layer-box {
+                width: 60% !important;
+                padding: 10px !important;
+            }
+            
+            .art-ep-list {
+                /* 手机端允许更小的格子 */
+                grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+                gap: 4px;
+            }
+            .art-ep-item {
+                font-size: 10px;
+                padding: 3px 0;
+                border-radius: 4px;
+            }
+            .art-ep-tabs {
+                gap: 4px;
+                padding-bottom: 4px;
+            }
+            .art-ep-tab {
+                font-size: 10px;
+                padding: 2px 6px;
+            }
         }
       `}</style>
 
@@ -718,8 +840,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
              </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 h-fit flex flex-col shadow-sm max-h-[600px]">
-            <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
                     <Icon name="playlist_play" className="text-blue-500 text-lg" /> 选集列表
                 </h3>
@@ -728,15 +850,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     {effectiveAccEnabled ? '加速已开启' : '点击加速'}
                 </button>
             </div>
-            <p className="text-[9px] text-gray-400 mb-4">{playList.length} 个视频内容</p>
+            <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
             {episodeSections.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-3 mb-3 hide-scrollbar">
+                <div className="flex gap-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
                     {episodeSections.map((sec, idx) => (
                         <button key={idx} onClick={() => setCurrentSectionIndex(idx)} className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}>{sec.label}</button>
                     ))}
                 </div>
             )}
-            <div className="overflow-y-auto pr-1 custom-scrollbar grid grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="overflow-y-auto pr-1 custom-scrollbar grid grid-cols-2 lg:grid-cols-3 gap-2 flex-1 min-h-0 content-start">
                 {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
                     <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`text-[11px] py-2 rounded-lg transition-all truncate border font-medium ${currentUrl === ep.url ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-50 dark:bg-slate-700/50 text-gray-500 border-gray-200 dark:border-gray-600'}`}>{ep.name}</button>
                 ))}
