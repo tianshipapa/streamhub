@@ -256,10 +256,21 @@ export const importSourcesData = (jsonData: any): Source[] => {
     // 使用 Set 加速去重检查
     const seenApis = new Set(current.map(s => s.api));
 
+    // 辅助函数：修正 API 地址
+    const fixApiUrl = (url: string): string => {
+        let fixed = url.trim();
+        // 自动修正：如果以 /provide/vod 或 /provide/vod/ 结尾，补全为 /provide/vod/at/xml
+        // 不再检查是否包含 lunatvz.wofuck.dpdns.org/?url=
+        if (fixed.match(/\/provide\/vod\/?$/)) {
+             return fixed.replace(/\/provide\/vod\/?$/, '/provide/vod/at/xml');
+        }
+        return fixed;
+    };
+
     // 通用添加方法
     const addSource = (name: any, api: any) => {
         if (name && api && typeof name === 'string' && typeof api === 'string') {
-            const cleanApi = api.trim();
+            const cleanApi = fixApiUrl(api);
             if (cleanApi && !seenApis.has(cleanApi)) {
                 newSources.push({ name: name.trim(), api: cleanApi, isCustom: true });
                 seenApis.add(cleanApi);
@@ -275,7 +286,6 @@ export const importSourcesData = (jsonData: any): Source[] => {
         });
     } else if (typeof jsonData === 'object' && jsonData !== null) {
         // 兼容特殊对象格式 { api_site: { "key": { name: "...", api: "..." } } }
-        // 例如：https://lunatvz.wofuck.dpdns.org/?format=0&source=jingjian
         if (jsonData.api_site && typeof jsonData.api_site === 'object') {
              Object.values(jsonData.api_site).forEach((val: any) => {
                  if (val) {
