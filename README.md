@@ -16,13 +16,23 @@ git remote add origin <您的仓库地址>
 git push -u origin main
 ```
 
-### 2. 在 Vercel 上导入
+### 2. 在 Vercel 也可在cloudflare pages上导入
 1. 登录 [Vercel](https://vercel.com)。
 2. 点击 "Add New..." -> "Project"。
 3. 选择 "Import Git Repository" 并连接您的 GitHub 账号。
 4. 选择刚刚上传的 `streamhub-vision` 仓库。
 5. **Framework Preset** 选择 `Vite`。
 6. 点击 **Deploy**。
+
+以下是cloudflare pages部署
+1. 登录 [Vercel](https://vercel.com)。
+2. 点击 "Add New..." -> "Project"。
+3. 选择 "Import Git Repository" 并连接您的 GitHub 账号。
+4. 选择刚刚上传的 `streamhub-vision` 仓库。
+7. Framework preset (框架预设): Vite
+Build command (构建命令): npm run build
+Build output directory (输出目录): dist
+Root directory (根目录): /
 
 ### 3. 配置说明
 - 本项目包含一个 Serverless Function (`api/proxy.js`) 用于解决视频源的跨域(CORS)问题。
