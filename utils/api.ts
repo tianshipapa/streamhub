@@ -1,6 +1,10 @@
 
 import { Movie, Category, Source } from '../types';
 
+// Detect Electron environment
+const isElectron = typeof navigator !== 'undefined' && 
+  (navigator.userAgent.toLowerCase().includes(' electron/') || (window as any).process?.type === 'renderer');
+
 // 代理配置仅用于 API 请求
 interface ProxyConfig {
   url: string;
@@ -8,6 +12,10 @@ interface ProxyConfig {
 }
 
 const PROXIES: ProxyConfig[] = [
+  // Electron 环境下优先使用直连 (依赖 webSecurity: false)
+  // url 为空字符串表示不添加前缀，实现直连
+  ...(isElectron ? [{ url: '', type: 'append' }] as ProxyConfig[] : []),
+  // Web 环境下使用本地 Proxy 或公共 Proxy
   { url: '/api/proxy?url=', type: 'query' },
   { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
   { url: 'https://corsproxy.io/?', type: 'append' },
@@ -39,6 +47,7 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
         if (response.ok) {
           const text = await response.text();
           if (text && text.trim().length > 0) {
+            // 简单的 HTML 检测，防止代理返回错误页面
             if (text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html')) {
                if (!targetUrl.includes('ac=list') && !targetUrl.includes('ac=detail')) {
                    throw new Error("Proxy returned HTML instead of data");

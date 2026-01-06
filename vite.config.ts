@@ -1,15 +1,26 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-ignore
+import legacy from '@vitejs/plugin-legacy';
 
 export default defineConfig({
-  plugins: [react()],
+  // 关键修改：Electron 环境下必须使用相对路径 './'，否则加载不到资源
+  base: './', 
+  plugins: [
+    react(),
+    legacy({
+      targets: ['android >= 4.4', 'chrome >= 30', 'ios >= 9', 'ie >= 11'],
+      additionalLegacyPolyfills: ['regenerator-runtime/runtime']
+    })
+  ],
   build: {
     outDir: 'dist',
+    target: 'es2015',
+    minify: 'terser',
   },
   server: {
     proxy: {
-      // 这里的配置确保本地开发时调用 /api/proxy 也能转发到后端或模拟服务
       '/api': {
         target: 'http://localhost:3000', 
         changeOrigin: true
