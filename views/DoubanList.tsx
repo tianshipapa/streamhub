@@ -3,11 +3,37 @@ import React, { useEffect, useState } from 'react';
 import { Movie, HomeViewState } from '../types';
 import MovieCard from '../components/MovieCard';
 import { Icon } from '../components/Icon';
-import { fetchDoubanRecommend } from '../utils/douban';
+import { fetchDoubanRecommend, fetchWMDBImage } from '../utils/douban';
 import { getCustomDoubanTags, addCustomDoubanTagToStorage, removeCustomDoubanTagFromStorage } from '../utils/storage';
 
 const ORIGINAL_MOVIE_TAGS = ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动作', '喜剧', '爱情', '科幻', '悬疑', '恐怖', '治愈'];
 const ORIGINAL_TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
+
+// 独立的包装组件，负责“静默”加载高清图片
+const DoubanItem: React.FC<{ movie: Movie; onClick: () => void }> = ({ movie, onClick }) => {
+    const [displayImage, setDisplayImage] = useState(movie.image);
+
+    useEffect(() => {
+        let isMounted = true;
+        // 如果 ID 存在，尝试获取高清图
+        // 这里会自动利用 fetchWMDBImage 内部的缓存，无需担心重复请求
+        if (movie.id) {
+            fetchWMDBImage(movie.id).then(url => {
+                if (isMounted && url && url !== movie.image) {
+                    setDisplayImage(url);
+                }
+            });
+        }
+        return () => { isMounted = false; };
+    }, [movie.id, movie.image]);
+
+    // 如果父级传入的 movie.image 变了（例如列表刷新），重置当前显示图片
+    useEffect(() => {
+        setDisplayImage(movie.image);
+    }, [movie.image]);
+
+    return <MovieCard movie={{ ...movie, image: displayImage }} viewType="HOME" onClick={onClick} />;
+};
 
 interface DoubanModuleProps {
   state: HomeViewState;
@@ -30,7 +56,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
     setCustomTags(tags);
   }, [state.doubanType]);
 
-  // 2. 加载数据的核心逻辑 (从 Home 移动至此)
+  // 2. 加载数据的核心逻辑
   const loadData = async (type: 'movie' | 'tv', tag: string, start: number) => {
     // 防止重复请求
     if (state.doubanLoading && start > 0) return;
@@ -38,6 +64,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
     onUpdate({ doubanLoading: true, doubanError: false });
     
     try {
+      // 这里的 fetchDoubanRecommend 现在返回非常快
       const results = await fetchDoubanRecommend(type, tag, start);
       
       onUpdate({ 
@@ -185,10 +212,9 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
       {/* 列表网格 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
         {state.doubanMovies.map((movie) => (
-          <MovieCard 
+          <DoubanItem 
             key={`douban-${movie.id}`} 
             movie={movie} 
-            viewType="HOME" 
             onClick={() => onSelectMovie(movie)} 
           />
         ))}
