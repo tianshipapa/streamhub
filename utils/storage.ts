@@ -9,7 +9,7 @@ const CUSTOM_DOUBAN_TAGS_KEY = 'streamhub_custom_douban_tags';
 const LAST_SOURCE_KEY = 'streamhub_last_source_api';
 const ACCELERATION_URL_KEY = 'streamhub_acceleration_url';
 const ACCELERATION_ENABLED_KEY = 'streamhub_acceleration_enabled';
-const DOUBAN_PROXY_KEY = 'streamhub_douban_proxy'; // 新增
+const DOUBAN_PROXY_KEY = 'streamhub_douban_proxy_url';
 const SKIP_CONFIG_PREFIX = 'streamhub_skip_config_';
 const MAX_HISTORY_ITEMS = 50;
 
@@ -176,7 +176,7 @@ export const resetSourcesToDefault = (): void => {
   localStorage.removeItem(LAST_SOURCE_KEY);
   localStorage.removeItem(ACCELERATION_URL_KEY);
   localStorage.removeItem(ACCELERATION_ENABLED_KEY);
-  localStorage.removeItem(DOUBAN_PROXY_KEY); // Reset proxy
+  localStorage.removeItem(DOUBAN_PROXY_KEY);
 };
 
 // --- Acceleration Management ---
@@ -193,11 +193,11 @@ export const setAccelerationConfig = (url: string, enabled: boolean): void => {
 
 // --- Douban Proxy Management ---
 export const getDoubanProxyUrl = (): string => {
-    return localStorage.getItem(DOUBAN_PROXY_KEY) || DEFAULT_DOUBAN_PROXY;
+  return localStorage.getItem(DOUBAN_PROXY_KEY) || DEFAULT_DOUBAN_PROXY;
 };
 
 export const setDoubanProxyUrl = (url: string): void => {
-    localStorage.setItem(DOUBAN_PROXY_KEY, url);
+  localStorage.setItem(DOUBAN_PROXY_KEY, url);
 };
 
 // --- Skip Config Management ---
@@ -266,21 +266,16 @@ export const exportSourcesData = () => {
 export const importSourcesData = (jsonData: any): Source[] => {
     const current = getCustomSources();
     const newSources: Source[] = [];
-    // 使用 Set 加速去重检查
     const seenApis = new Set(current.map(s => s.api));
 
-    // 辅助函数：修正 API 地址
     const fixApiUrl = (url: string): string => {
         let fixed = url.trim();
-        // 自动修正：如果以 /provide/vod 或 /provide/vod/ 结尾，补全为 /provide/vod/at/xml
-        // 不再检查是否包含 lunatvz.wofuck.dpdns.org/?url=
         if (fixed.match(/\/provide\/vod\/?$/)) {
              return fixed.replace(/\/provide\/vod\/?$/, '/provide/vod/at/xml');
         }
         return fixed;
     };
 
-    // 通用添加方法
     const addSource = (name: any, api: any) => {
         if (name && api && typeof name === 'string' && typeof api === 'string') {
             const cleanApi = fixApiUrl(api);
@@ -292,13 +287,11 @@ export const importSourcesData = (jsonData: any): Source[] => {
     };
 
     if (Array.isArray(jsonData)) {
-        // 兼容标准数组格式 [{name: "...", api: "..."}] 或 [{name: "...", url: "..."}]
         jsonData.forEach(item => {
             const api = item.url || item.api;
             addSource(item.name, api);
         });
     } else if (typeof jsonData === 'object' && jsonData !== null) {
-        // 兼容特殊对象格式 { api_site: { "key": { name: "...", api: "..." } } }
         if (jsonData.api_site && typeof jsonData.api_site === 'object') {
              Object.values(jsonData.api_site).forEach((val: any) => {
                  if (val) {
@@ -336,7 +329,7 @@ export const exportFullBackup = () => {
             tv: getCustomDoubanTags('tv')
         },
         acceleration: getAccelerationConfig(),
-        doubanProxy: getDoubanProxyUrl(), // Export Proxy
+        doubanProxy: getDoubanProxyUrl(),
         skipConfigs: skipConfigs,
         lastSource: getLastUsedSourceApi(),
         version: '1.2'
@@ -363,7 +356,7 @@ export const importFullBackup = (backup: any) => {
             localStorage.setItem(ACCELERATION_URL_KEY, backup.acceleration.url);
             localStorage.setItem(ACCELERATION_ENABLED_KEY, String(backup.acceleration.enabled));
         }
-        if (backup.doubanProxy) localStorage.setItem(DOUBAN_PROXY_KEY, backup.doubanProxy); // Import Proxy
+        if (backup.doubanProxy) localStorage.setItem(DOUBAN_PROXY_KEY, backup.doubanProxy);
         if (backup.skipConfigs) {
           Object.entries(backup.skipConfigs).forEach(([k, v]) => {
             localStorage.setItem(k, JSON.stringify(v));

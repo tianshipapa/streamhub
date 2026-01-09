@@ -54,6 +54,7 @@ export const fetchTmdbImage = async (id: string): Promise<string | null> => {
                 }
 
                 if (entry && entry.poster && !entry.poster.includes('noposter')) {
+                    // 图片结果应用代理
                     return wrapDoubanImage(entry.poster);
                 }
             }
@@ -64,11 +65,10 @@ export const fetchTmdbImage = async (id: string): Promise<string | null> => {
     };
 
     try {
-        // 随机微小延迟，错峰请求，避免列表页瞬间并发过高导致 429
+        // 随机微小延迟，错峰请求
         const delay = Math.floor(Math.random() * 300);
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        // 直接请求 WMDB
         const poster = await fetchFromWmdb();
 
         if (poster) {
@@ -92,20 +92,19 @@ export const fetchDoubanRecommend = async (type: 'movie' | 'tv', tag: string, pa
   try {
     const url = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=24&page_start=${pageStart}`;
     
-    // 豆瓣 API 必须走代理（解决跨域和 Referer 限制）
+    // 豆瓣 API 必须走代理（解决跨域和 Referer 限制），但此处不使用 wrapDoubanImage
     const text = await fetchViaProxy(url);
     if (!text || !text.trim().startsWith('{')) return [];
     
     const data = JSON.parse(text);
     if (!data || !data.subjects) return [];
     
-    // 立即返回列表，不处理高清图逻辑，提高响应速度
     return data.subjects.map((item: any) => {
         // 默认先尝试将 s_ratio_poster 替换为 l_ratio_poster 以获得稍好的体验
-        // 随后 DoubanList 组件会异步调用 fetchTmdbImage 替换为更高清的原图
         let cover = item.cover || '';
         if (cover) {
             cover = cover.replace('s_ratio_poster', 'l_ratio_poster');
+            // 列表缩略图应用代理
             cover = wrapDoubanImage(cover);
         }
 
@@ -121,6 +120,7 @@ export const fetchDoubanRecommend = async (type: 'movie' | 'tv', tag: string, pa
     });
   } catch (e) {
     console.error("Douban fetch error:", e);
+    // 返回空数组而不是抛出异常，让 UI 显示重试按钮
     return [];
   }
 };
