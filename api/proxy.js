@@ -1,4 +1,3 @@
-
 export const config = {
   runtime: 'edge',
 };
@@ -15,12 +14,17 @@ export default async function handler(request) {
   }
 
   try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    };
 
+    // 如果是豆瓣 API 接口，必须注入 Referer
+    if (targetUrl.includes('douban.com')) {
+      headers['Referer'] = 'https://movie.douban.com/';
+      headers['Host'] = 'movie.douban.com';
+    }
+
+    const response = await fetch(targetUrl, { headers });
     const data = await response.text();
 
     return new Response(data, {

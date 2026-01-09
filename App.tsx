@@ -32,6 +32,8 @@ const App: React.FC = () => {
     sourceApi: '',
     loading: true,
     error: false,
+    doubanLoading: false, // 初始化独立状态
+    doubanError: false,   // 初始化独立状态
     isDoubanMode: false,
     doubanType: 'movie',
     doubanTag: '热门',

@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
 import { Movie, Category, HomeProps, Source } from '../types';
 import MovieCard from '../components/MovieCard';
+import DoubanList from './DoubanList'; // 导入分离的豆瓣组件
 import { Icon } from '../components/Icon';
 import { fetchVideoList, fetchDoubanSubjects, fetchViaProxy } from '../utils/api';
 import { 
@@ -104,6 +105,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
         loadDoubanData(savedState.doubanType, savedState.doubanTag, 0);
       }
     } else if (mode === 'SOURCE') {
+      // 只有在数据为空或源API变更时才触发加载，避免切换回SOURCE时重新加载
       if (currentSource.api && (currentSource.api !== savedState.sourceApi || savedState.movies.length === 0)) {
         onStateUpdate({
             sourceApi: currentSource.api,
@@ -111,7 +113,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
             categories: [],
             activeCategoryId: '',
             page: 1,
-            loading: true,
+            loading: true, // 使用源站专用 loading
             error: false
         });
         loadData(currentSource.api, '', 1);
@@ -131,6 +133,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
   }, [savedState.loading, mode]);
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
+    // 源站加载逻辑：只操作 loading/error
     if (pageNum === 1) onStateUpdate({ loading: true, error: false });
     try {
         const { videos, categories: fetchedCategories } = await fetchVideoList(apiUrl, typeId, pageNum);
@@ -147,11 +150,17 @@ const Home: React.FC<ExtendedHomeProps> = ({
   };
 
   const loadDoubanData = async (type: 'movie' | 'tv', tag: string, start: number) => {
-    onStateUpdate({ loading: true });
+    // 豆瓣加载逻辑：只操作 doubanLoading/doubanError
+    onStateUpdate({ doubanLoading: true, doubanError: false });
     try {
       const results = await fetchDoubanSubjects(type, tag, start);
-      onStateUpdate({ doubanMovies: start === 0 ? results : [...savedState.doubanMovies, ...results], loading: false });
-    } catch (e) { onStateUpdate({ loading: false, error: true }); }
+      onStateUpdate({ 
+          doubanMovies: start === 0 ? results : [...savedState.doubanMovies, ...results], 
+          doubanLoading: false 
+      });
+    } catch (e) { 
+        onStateUpdate({ doubanLoading: false, doubanError: true }); 
+    }
   };
 
   const handleMovieClick = (movie: Movie) => {
@@ -471,6 +480,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
       {/* 动态内容展示 */}
       {mode === 'SETTINGS' ? (
         <section className="min-h-[60vh] animate-fadeIn space-y-8 pb-20">
+            {/* ... 设置页面内容保持不变 ... */}
             {/* 顶层工具栏：数据同步与备份 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* 1. 数据同步（源列表） */}
@@ -847,7 +857,18 @@ const Home: React.FC<ExtendedHomeProps> = ({
                 )}
             </div>
 
-            {mode === 'FAVORITE' ? (
+            {mode === 'DOUBAN' ? (
+                // 独立的豆瓣列表组件
+                <DoubanList 
+                    movies={savedState.doubanMovies}
+                    loading={savedState.doubanLoading}
+                    error={savedState.doubanError}
+                    tag={savedState.doubanTag}
+                    onLoadMore={() => loadDoubanData(savedState.doubanType, savedState.doubanTag, savedState.doubanMovies.length)}
+                    onRetry={() => loadDoubanData(savedState.doubanType, savedState.doubanTag, 0)}
+                    onMovieClick={handleMovieClick}
+                />
+            ) : mode === 'FAVORITE' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
                     {favorites.map((m) => (
                         <div key={m.id} className="relative group">
@@ -857,17 +878,23 @@ const Home: React.FC<ExtendedHomeProps> = ({
                     ))}
                     {favorites.length === 0 && <div className="col-span-full py-20 flex flex-col items-center text-gray-400 italic"><Icon name="collections_bookmark" className="text-5xl mb-4" /><p>收藏夹空空如也，快去收藏喜欢的影视吧</p></div>}
                 </div>
-            ) : savedState.loading && (mode === 'DOUBAN' ? savedState.doubanMovies.length === 0 : savedState.movies.length === 0) ? (
-                <div className="flex flex-col items-center justify-center py-24 gap-4"><div className={`animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 ${mode === 'DOUBAN' ? 'border-pink-500' : 'border-blue-500'}`}></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
+            ) : savedState.loading && savedState.movies.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 gap-4"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
+            ) : savedState.error && savedState.movies.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <Icon name="error_outline" className="text-5xl text-gray-300 mb-4" />
+                    <p className="text-gray-500 mb-2">加载失败</p>
+                    <button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page)} className="text-blue-500 hover:underline">点击重试</button>
+                </div>
             ) : (
                 <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
-                        {(mode === 'DOUBAN' ? savedState.doubanMovies : savedState.movies).map((movie, idx) => (
+                        {savedState.movies.map((movie, idx) => (
                             <MovieCard key={`${movie.sourceApi}-${movie.id}-${idx}`} movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
                         ))}
                     </div>
-                    {(mode === 'DOUBAN' ? savedState.doubanMovies : savedState.movies).length > 0 && (
-                        <div className="mt-16 flex justify-center pb-12"><button onClick={mode === 'DOUBAN' ? () => loadDoubanData(savedState.doubanType, savedState.doubanTag, savedState.doubanMovies.length) : () => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)} disabled={savedState.loading} className={`flex items-center gap-3 px-10 py-3.5 rounded-full font-bold transition-all shadow-lg ${savedState.loading ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200'}`}>加载更多内容</button></div>
+                    {savedState.movies.length > 0 && (
+                        <div className="mt-16 flex justify-center pb-12"><button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)} disabled={savedState.loading} className={`flex items-center gap-3 px-10 py-3.5 rounded-full font-bold transition-all shadow-lg ${savedState.loading ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200'}`}>{savedState.loading ? '加载中...' : '加载更多内容'}</button></div>
                     )}
                 </>
             )}

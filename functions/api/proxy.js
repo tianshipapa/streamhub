@@ -12,11 +12,17 @@ export async function onRequest(context) {
   }
 
   try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    };
+
+    // 针对豆瓣 API 增加 Referer，解决接口 403 问题
+    if (targetUrl.includes('douban.com')) {
+      headers['Referer'] = 'https://movie.douban.com/';
+      headers['Host'] = 'movie.douban.com';
+    }
+
+    const response = await fetch(targetUrl, { headers });
 
     const data = await response.text();
 

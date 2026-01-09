@@ -41,8 +41,10 @@ export interface HomeViewState {
   page: number;
   scrollY: number;
   sourceApi: string; 
-  loading: boolean;
-  error: boolean;
+  loading: boolean;      // 仅用于采集源加载状态
+  error: boolean;        // 仅用于采集源错误状态
+  doubanLoading: boolean; // 新增：独立用于豆瓣加载状态
+  doubanError: boolean;   // 新增：独立用于豆瓣错误状态
   isDoubanMode: boolean;
   doubanType: 'movie' | 'tv';
   doubanTag: string;
