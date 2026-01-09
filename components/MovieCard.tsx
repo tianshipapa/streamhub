@@ -16,15 +16,32 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
   // 图片加载状态管理
   const [imgSrc, setImgSrc] = useState<string>(movie.image);
   const [hasError, setHasError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     setImgSrc(movie.image);
     setHasError(false);
+    setIsRetrying(false);
   }, [movie.image]);
 
   const handleImageError = () => {
-    if (!hasError) {
-        // 图片加载失败，不使用代理，直接显示占位图
+    if (hasError) return;
+
+    // 获取潜在的原始 URL (剥离 yangzirui 代理，防止双重代理失败)
+    let originalUrl = movie.image;
+    const proxyPrefix = 'https://api.yangzirui.com/proxy/';
+    if (originalUrl && originalUrl.startsWith(proxyPrefix)) {
+        originalUrl = originalUrl.replace(proxyPrefix, '');
+    }
+
+    // 策略 1: 如果直连(或第一层代理)失败，且未使用过 weserv，尝试使用 weserv 缓存代理
+    // 这是一个常用于解决豆瓣防盗链的通用方案
+    if (!isRetrying && originalUrl && !originalUrl.includes('weserv.nl')) {
+        setIsRetrying(true);
+        // 使用 images.weserv.nl 作为回退，传入原始 URL
+        setImgSrc(`https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}`);
+    } else {
+        // 策略 2: 代理也失败，显示占位图
         setImgSrc(`https://images.placeholders.dev/?width=300&height=450&text=${encodeURIComponent(movie.title || '暂无封面')}&fontSize=20&bgColor=%231e293b&textColor=%23ffffff`);
         setHasError(true);
     }

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Movie, HomeViewState } from '../types';
 import MovieCard from '../components/MovieCard';
 import { Icon } from '../components/Icon';
-import { fetchDoubanRecommend, fetchWMDBImage } from '../utils/douban';
+import { fetchDoubanRecommend, fetchTmdbImage } from '../utils/douban';
 import { getCustomDoubanTags, addCustomDoubanTagToStorage, removeCustomDoubanTagFromStorage } from '../utils/storage';
 
 const ORIGINAL_MOVIE_TAGS = ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动作', '喜剧', '爱情', '科幻', '悬疑', '恐怖', '治愈'];
@@ -15,10 +15,9 @@ const DoubanItem: React.FC<{ movie: Movie; onClick: () => void }> = ({ movie, on
 
     useEffect(() => {
         let isMounted = true;
-        // 如果 ID 存在，尝试获取高清图
-        // 这里会自动利用 fetchWMDBImage 内部的缓存，无需担心重复请求
+        // 如果 ID 存在，尝试获取 TMDb 高清图
         if (movie.id) {
-            fetchWMDBImage(movie.id).then(url => {
+            fetchTmdbImage(movie.id).then(url => {
                 if (isMounted && url && url !== movie.image) {
                     setDisplayImage(url);
                 }
