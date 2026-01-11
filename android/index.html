@@ -1,9 +1,32 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
+    <meta name="referrer" content="no-referrer" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StreamHub Vision</title>
+	<script type="text/javascript">
+	        document.addEventListener('plusready', function(a) { //等待plus ready后再调用5+ API：
+	                // 在这里调用5+ API
+	                var first = null;
+	                plus.key.addEventListener('backbutton', function() { //监听返回键
+	                        //首次按键，提示‘再按一次退出应用’
+	                        if (!first) {
+	                            first = new Date().getTime(); //获取第一次点击的时间戳
+	                            // console.log('再按一次退出应用');//用自定义toast提示最好
+	                            // toast('双击返回键退出应用'); //调用自己写的吐丝提示 函数
+	                            plus.nativeUI.toast("双击退出", {duration:'short'}); //通过H5+ API 调用Android 上的toast 提示框
+	                            setTimeout(function() {
+	                                first = null;
+	                            }, 1000);
+	                        } else {
+	                            if (new Date().getTime() - first < 1000) { //获取第二次点击的时间戳, 两次之差 小于 1000ms 说明1s点击了两次,
+	                                plus.runtime.quit(); //退出应用
+	                            }
+	                        }
+	                    }, false);
+	            });
+	</script>
     <script>
       // Initialize theme immediately to prevent FOUC
       try {
@@ -63,22 +86,24 @@
     </style>
 
 <link rel="stylesheet" href="/index.css">
+
+
 <script type="importmap">
 {
   "imports": {
+    "path": "https://esm.sh/path@^0.12.7",
+    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@vitejs/plugin-legacy": "https://esm.sh/@vitejs/plugin-legacy@^7.2.1",
     "url": "https://esm.sh/url@^0.11.4",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "electron": "https://esm.sh/electron@^39.2.7",
-    "path": "https://esm.sh/path@^0.12.7"
+    "@vitejs/plugin-legacy": "https://esm.sh/@vitejs/plugin-legacy@^7.2.1"
   }
 }
 </script>
-  <script type="module" crossorigin src="./assets/index-50b9e499.js"></script>
+  <script type="module" crossorigin src="./assets/index-dc1488cf.js"></script>
   <script type="module">import.meta.url;import("_").catch(()=>1);async function* g(){};if(location.protocol!="file:"){window.__vite_is_modern_browser=true}</script>
   <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
 </head>
@@ -87,6 +112,6 @@
     
     <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
     <script nomodule crossorigin id="vite-legacy-polyfill" src="./assets/polyfills-legacy-e985afee.js"></script>
-    <script nomodule crossorigin id="vite-legacy-entry" data-src="./assets/index-legacy-ba6561a3.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
+    <script nomodule crossorigin id="vite-legacy-entry" data-src="./assets/index-legacy-9081c7e0.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
   </body>
 </html>
