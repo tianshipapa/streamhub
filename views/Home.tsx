@@ -26,7 +26,7 @@ import {
 } from '../utils/storage';
 
 const REMOTE_SOURCE_PRESETS = [
-    { name: '默认采集源', url: 'https://a.wokaotianshi.eu.org/jgcj/zcying.json' },
+    { name: '在线源', url: 'https://a.wokaotianshi.eu.org/jgcj/zcying.json' },
     { name: '精简源(代理)', url: 'https://lunatvz.wofuck.dpdns.org/?format=1&source=jingjian&prefix=https://cfkua.wokaotianshi.eu.org/' },
     { name: '备用采集源', url: 'https://a.wokaotianshi.eu.org/jgcj/zyvying.json' }
 ];
