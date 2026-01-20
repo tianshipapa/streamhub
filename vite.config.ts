@@ -3,10 +3,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 // @ts-ignore
 import legacy from '@vitejs/plugin-legacy';
+import { fileURLToPath, URL } from 'url';
 
 export default defineConfig({
   // 关键修改：Electron 环境下必须使用相对路径 './'，否则加载不到资源
   base: './', 
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./', import.meta.url))
+    }
+  },
   plugins: [
     react(),
     legacy({

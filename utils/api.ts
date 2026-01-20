@@ -16,43 +16,47 @@ interface ProxyConfig {
 
 const PROXIES: ProxyConfig[] = [
   // Electron 或 HBuilderX (App) 环境下优先使用直连
-  // 5+ App 环境下默认不受同源策略限制，直接请求速度最快
   ...(isElectron || isHBuilder ? [{ url: '', type: 'append' }] as ProxyConfig[] : []),
   // Web 环境下使用本地 Proxy 或公共 Proxy
   { url: '/api/proxy?url=', type: 'query' },
+  // 移除 corsproxy.io，因为可能导致部分地区连接困难或被墙
   { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
-  { url: 'https://corsproxy.io/?', type: 'append' },
   { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
 ];
 
 export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSignal): Promise<string> => {
   let lastError = null;
+  // 增加超时时间到 15s，防止网络波动导致的 signal aborted
+  const TIMEOUT_MS = 15000;
+
   for (const proxy of PROXIES) {
     if (externalSignal?.aborted) throw new Error("Aborted");
     
     try {
       const url = proxy.type === 'query' ? `${proxy.url}${encodeURIComponent(targetUrl)}` : `${proxy.url}${targetUrl}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); 
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS); 
       
       let signal = controller.signal;
       if (externalSignal) {
         if ((AbortSignal as any).any) {
           signal = (AbortSignal as any).any([controller.signal, externalSignal]);
         } else {
-          signal = externalSignal;
+          // Fallback if AbortSignal.any is not supported
+          signal = controller.signal;
         }
       }
 
       try {
         const response = await fetch(url, { signal });
         clearTimeout(timeoutId);
+        
         if (response.ok) {
           const text = await response.text();
           if (text && text.trim().length > 0) {
             // 简单的 HTML 检测，防止代理返回错误页面
             if (text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html')) {
-               if (!targetUrl.includes('ac=list') && !targetUrl.includes('ac=detail')) {
+               if (!targetUrl.includes('ac=list') && !targetUrl.includes('ac=detail') && !targetUrl.includes('douban.com')) {
                    throw new Error("Proxy returned HTML instead of data");
                }
             }
@@ -62,11 +66,21 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
         throw new Error(`HTTP status ${response.status}`);
       } catch (e: any) {
         clearTimeout(timeoutId);
-        if (e.name === 'AbortError' && externalSignal?.aborted) throw e;
-        lastError = e;
+        
+        // 外部手动取消
+        if (externalSignal?.aborted) throw e;
+
+        // 内部超时处理 (controller.abort() 默认抛出 AbortError)
+        if (e.name === 'AbortError') {
+             // 将 AbortError 转换为普通的 Timeout Error，避免上层误判为用户取消
+             lastError = new Error(`Request timed out after ${TIMEOUT_MS}ms`);
+             continue; // 继续尝试下一个代理
+        } else {
+             lastError = e;
+        }
       }
     } catch (error: any) {
-      if (error.name === 'AbortError') throw error;
+      if (externalSignal?.aborted) throw error;
       lastError = error;
     }
   }
@@ -184,21 +198,185 @@ const parseMacCMSXml = (xmlText: string, apiHost: string) => {
     }
 };
 
-export const fetchSources = async (): Promise<Source[]> => {
-  const fallbackSources = [
-      { name: '量子资源', api: 'https://cj.lziapi.com/api.php/provide/vod/' }, 
-      { name: '非凡资源', api: 'https://cj.ffzyapi.com/api.php/provide/vod/' },
-      { name: '天空资源', api: 'https://api.tiankongapi.com/api.php/provide/vod/' }
-  ];
-  try {
-    const targetUrl = 'https://a.wokaotianshi.eu.org/jgcj/zcying.json';
-    const jsonText = await fetchViaProxy(targetUrl);
-    const data = JSON.parse(jsonText);
-    if (Array.isArray(data) && data.length > 0) return data.map((item: any) => ({ name: item.name, api: item.api }));
-    return fallbackSources;
-  } catch (error) {
-    return fallbackSources;
+const DEFAULT_SOURCES = [
+  {
+    "key": "茅台资源站采集接口",
+    "name": "茅台资源站采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://caiji.maotaizy.cc/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "旺旺资源网采集接口",
+    "name": "旺旺资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.wwzy.tv/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "如意资源网采集接口",
+    "name": "如意资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://cj.rycjapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "红牛云播资源采集地址",
+    "name": "红牛云播资源采集地址",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://www.hongniuzy2.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "光速资源站采集接口地址",
+    "name": "光速资源站采集接口地址",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.guangsuapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "速播资源采集规则地址",
+    "name": "速播资源采集规则地址",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://subocj.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "豪华资源网采集接口地址",
+    "name": "豪华资源网采集接口地址",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://hhzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "虎牙资源采集网采集接口",
+    "name": "虎牙资源采集网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://www.huyaapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "爱奇艺资源站采集接口",
+    "name": "爱奇艺资源站采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://iqiyizyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "豆瓣资源采集站采集接口大全",
+    "name": "豆瓣资源采集站采集接口大全",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://caiji.dbzy5.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "魔都动漫资源采集网采集接口",
+    "name": "魔都动漫资源采集网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://www.mdzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "ikun资源网采集接口",
+    "name": "ikun资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://ikunzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "OK资源采集网采集接口",
+    "name": "OK资源采集网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/http://api.okzyw.net/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "U酷资源网采集地址",
+    "name": "U酷资源网采集地址",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.ukuapi88.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "量子资源网资源采集接口",
+    "name": "量子资源网资源采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://cj.lziapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "最大资源网采集接口",
+    "name": "最大资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.zuidapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "天涯影视资源网采集接口",
+    "name": "天涯影视资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://tyyszyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "电影天堂采集综合资源接口",
+    "name": "电影天堂采集综合资源接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/http://caiji.dyttzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "百度资源采集接口",
+    "name": "百度资源采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.apibdzy.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "百万资源网采集接口",
+    "name": "百万资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.bwzyz.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "鸭鸭（丫丫）资源网采集接口",
+    "name": "鸭鸭（丫丫）资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://cj.yayazy.net/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "牛牛资源网采集接口",
+    "name": "牛牛资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.niuniuzy.me/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "360资源站采集接口",
+    "name": "360资源站采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://360zyzz.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "卧龙影视资源采集站采集接口",
+    "name": "卧龙影视资源采集站采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://collect.wolongzy.cc/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "极速资源网采集接口",
+    "name": "极速资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://jszyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "暴风资源网采集接口",
+    "name": "暴风资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://bfzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "非凡资源网采集接口",
+    "name": "非凡资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/http://api.ffzyapi.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "樱花资源网采集接口",
+    "name": "樱花资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://m3u8.apiyhzy.com/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
+  },
+  {
+    "key": "无尽资源网采集接口",
+    "name": "无尽资源网采集接口",
+    "api": "https://cfkua.wokaotianshi.eu.org/https://api.wujinapi.me/api.php/provide/vod/at/xml",
+    "useInSearchAll": true
   }
+];
+
+export const fetchSources = async (): Promise<Source[]> => {
+  return DEFAULT_SOURCES.map((item: any) => ({ name: item.name, api: item.api }));
 };
 
 export const fetchVideoList = async (apiUrl: string, typeId: string = '', page: number = 1): Promise<{ videos: Movie[], categories: Category[] }> => {
