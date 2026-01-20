@@ -1,10 +1,6 @@
-import { app, BrowserWindow, shell } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-// 在 ESM 中模拟 __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { app, BrowserWindow, shell } = require('electron');
+const path = require('path');
 
 // 屏蔽安全警告
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
@@ -18,7 +14,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: 'StreamHub Vision',
-    // 修正路径：ESM 下需要确保路径拼接正确
+    // CommonJS 中可以直接使用 __dirname
     icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       nodeIntegration: true,
