@@ -1,4 +1,5 @@
 
+
 export interface Movie {
   id: string;
   title: string;
@@ -23,6 +24,7 @@ export interface Movie {
   availableSources?: {
     api: string;
     name: string;
+    vodId?: string; // 保存对应源的视频ID
   }[];
 }
 

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Movie, ViewState } from '../types';
 import { Icon } from './Icon';
@@ -45,9 +46,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
     }
   };
 
-  const handleSourceClick = (e: React.MouseEvent, api: string, name: string) => {
+  const handleSourceClick = (e: React.MouseEvent, api: string, name: string, vodId?: string) => {
       e.stopPropagation();
-      onClick({ ...movie, sourceApi: api, sourceName: name });
+      onClick({ 
+          ...movie, 
+          sourceApi: api, 
+          sourceName: name,
+          id: vodId || movie.id, // 使用该源对应的真实 ID
+          vod_id: vodId || movie.vod_id // 确保 vod_id 也更新
+      });
       setShowSourceSelector(false);
   };
 
@@ -139,7 +146,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
                      {movie.availableSources?.map((src, idx) => (
                          <div 
                             key={idx}
-                            onClick={(e) => handleSourceClick(e, src.api, src.name)}
+                            onClick={(e) => handleSourceClick(e, src.api, src.name, src.vodId)}
                             className="px-3 py-2 text-xs text-gray-200 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors flex items-center gap-2 rounded-lg m-0.5"
                          >
                              <Icon name="movie" className="text-[12px] opacity-70" />
