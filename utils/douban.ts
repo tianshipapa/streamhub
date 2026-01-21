@@ -89,17 +89,50 @@ export const fetchTmdbImage = async (id: string): Promise<string | null> => {
  * 仅获取豆瓣列表数据，不阻塞等待高清图片
  */
 export const fetchDoubanRecommend = async (type: 'movie' | 'tv', tag: string, pageStart: number = 0): Promise<Movie[]> => {
-  try {
-    const url = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=24&page_start=${pageStart}`;
-    
-    // 豆瓣 API 必须走代理（解决跨域和 Referer 限制），但此处不使用 wrapDoubanImage
-    const text = await fetchViaProxy(url);
-    if (!text || !text.trim().startsWith('{')) return [];
-    
-    const data = JSON.parse(text);
-    if (!data || !data.subjects) return [];
-    
-    return data.subjects.map((item: any) => {
+  const targetUrl = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=24&page_start=${pageStart}`;
+  
+  let data: any = null;
+
+  // 策略 1: 优先尝试用户配置的 "豆瓣代理"
+  // 这解决了 fetchViaProxy 轮询到不支持 Referer 的公共代理导致 403 的问题
+  const userProxy = getDoubanProxyUrl();
+  if (userProxy) {
+      try {
+          // 简单的拼接：用户代理通常是 https://api.yangzirui.com/proxy/ 这种格式
+          const proxyUrl = `${userProxy}${targetUrl}`;
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
+          const res = await fetch(proxyUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          
+          if (res.ok) {
+              const text = await res.text();
+              if (text && text.trim().startsWith('{')) {
+                  data = JSON.parse(text);
+              }
+          }
+      } catch (e) {
+          // 用户代理失败，静默失败，进入策略 2
+      }
+  }
+
+  // 策略 2: 如果策略1失败，回退到系统 fetchViaProxy (包含本地 /api/proxy 和其他公共代理)
+  if (!data) {
+    try {
+        const text = await fetchViaProxy(targetUrl);
+        if (text && text.trim().startsWith('{')) {
+            data = JSON.parse(text);
+        }
+    } catch (e) {
+        console.error("Douban fetch error:", e);
+    }
+  }
+
+  // 如果所有策略都失败
+  if (!data || !data.subjects) return [];
+  
+  return data.subjects.map((item: any) => {
         // 默认先尝试将 s_ratio_poster 替换为 l_ratio_poster 以获得稍好的体验
         let cover = item.cover || '';
         if (cover) {
@@ -117,10 +150,5 @@ export const fetchDoubanRecommend = async (type: 'movie' | 'tv', tag: string, pa
             rating: parseFloat(item.rate) || 0,
             isDouban: true
         };
-    });
-  } catch (e) {
-    console.error("Douban fetch error:", e);
-    // 返回空数组而不是抛出异常，让 UI 显示重试按钮
-    return [];
-  }
+  });
 };
