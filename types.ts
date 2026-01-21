@@ -19,6 +19,11 @@ export interface Movie {
   sourceApi?: string;
   sourceName?: string;
   isDouban?: boolean;
+  // 新增：聚合模式下的可用源列表
+  availableSources?: {
+    api: string;
+    name: string;
+  }[];
 }
 
 export interface Category {

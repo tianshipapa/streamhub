@@ -154,18 +154,22 @@ const App: React.FC = () => {
     else if (currentView === 'SEARCH') setCurrentView('HOME');
   }, [currentView, previousView]);
 
-  const handleSearch = (query: string, autoAggregate: boolean = false) => {
+  // 修改：默认开启聚合搜索 (autoAggregate 默认为 true)
+  const handleSearch = (query: string, autoAggregate: boolean = true) => {
     setSearchQuery(query);
     setSearchViewState(prev => {
+        const shouldAggregate = autoAggregate;
         const next = { 
             ...prev, 
             query: query, 
             hasSearched: false,
-            isAggregate: autoAggregate || prev.isAggregate,
+            isAggregate: shouldAggregate,
             selectedSourceApis: new Set(prev.selectedSourceApis)
         };
         const currentAvailableApis = sources.map(s => s.api);
-        if (autoAggregate) {
+        
+        // 如果开启聚合，默认选中所有可用源
+        if (shouldAggregate) {
             next.selectedSourceApis = new Set(currentAvailableApis);
         } else if (next.selectedSourceApis.size === 0) {
             next.selectedSourceApis = new Set([currentSource.api]);
