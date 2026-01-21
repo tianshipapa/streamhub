@@ -96,17 +96,17 @@ const Search: React.FC<SearchProps> = ({
             if (resultGroup.has(fullKey)) {
                 const existing = resultGroup.get(fullKey)!;
                 if (!existing.availableSources) {
-                    existing.availableSources = [{ api: existing.sourceApi!, name: existing.sourceName! }];
+                    existing.availableSources = [{ api: existing.sourceApi!, name: existing.sourceName!, vodId: existing.id }];
                 }
                 if (item.sourceApi && item.sourceName) {
                     if (!existing.availableSources.some(s => s.api === item.sourceApi)) {
-                        existing.availableSources.push({ api: item.sourceApi, name: item.sourceName });
+                        existing.availableSources.push({ api: item.sourceApi, name: item.sourceName, vodId: item.id });
                     }
                 }
                 if (!existing.year && item.year) existing.year = item.year;
                 if ((!existing.image || existing.image.length < 10) && item.image) existing.image = item.image;
             } else {
-                item.availableSources = [{ api: item.sourceApi!, name: item.sourceName! }];
+                item.availableSources = [{ api: item.sourceApi!, name: item.sourceName!, vodId: item.id }];
                 resultGroup.set(fullKey, item);
             }
         });
