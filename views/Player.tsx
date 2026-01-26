@@ -477,6 +477,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     setting: true,
                     pip: false,
                     airplay: false,
+                    icons: {
+                        // 使用自定义的复杂动画作为内部缓冲图标
+                        loading: `<div class="art-loading-custom">
+                                    <div class="art-loading-glow"></div>
+                                    <div class="art-loading-ring-outer"></div>
+                                    <div class="art-loading-ring-inner"></div>
+                                    <div class="art-loading-icon-bg"><i class="material-icons-round" style="font-size: 24px; color: #3b82f6;">smart_display</i></div>
+                                  </div>`,
+                    },
                     customType: {
                         m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
                             if (window.Hls && window.Hls.isSupported()) {
@@ -662,7 +671,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     };
   }, [currentUrl, movieId, effectiveAccEnabled]);
 
-  if (loading) return <div className="flex justify-center items-center h-[80vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div></div>;
+  // 移除了初始的复杂加载动画，改为简单的文字提示
+  if (loading) {
+      return (
+        <div className="flex flex-col justify-center items-center h-[60vh] sm:h-[70vh] animate-fadeIn">
+            <div className="text-gray-400 text-sm animate-pulse flex items-center gap-2">
+                <Icon name="sync" className="animate-spin text-base" />
+                正在加载资源...
+            </div>
+        </div>
+      );
+  }
+  
   if (!details) return <div className="text-center py-20 text-red-500 font-bold">内容加载失败</div>;
 
   return (
@@ -677,6 +697,57 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
         
         .art-control-volume { display: none !important; }
+
+        /* Artplayer 内部缓冲图标美化：移植自原来的初始加载动画 */
+        .art-loading-custom {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .art-loading-glow {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(59, 130, 246, 0.2);
+            border-radius: 9999px;
+            filter: blur(12px);
+            animation: art-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .art-loading-ring-outer {
+            position: absolute;
+            inset: 0;
+            border: 2px solid transparent;
+            border-top-color: rgba(59, 130, 246, 0.3);
+            border-bottom-color: rgba(59, 130, 246, 0.3);
+            border-radius: 9999px;
+            animation: art-spin 3s linear infinite;
+        }
+        .art-loading-ring-inner {
+            position: absolute;
+            inset: 8px;
+            border: 2px solid transparent;
+            border-left-color: #2563eb;
+            border-right-color: transparent;
+            border-radius: 9999px;
+            animation: art-spin 1s ease-in-out infinite;
+        }
+        .art-loading-icon-bg {
+            position: relative;
+            z-index: 10;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        @keyframes art-spin { to { transform: rotate(360deg); } }
+        @keyframes art-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
         
         /* 选集列表样式系统 */
         .art-ep-layer-box {
