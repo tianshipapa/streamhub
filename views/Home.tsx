@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
 import { Movie, HomeProps, Source } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -397,7 +398,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
   };
   
   return (
-    <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full animate-fadeIn">
+    <main className="flex-grow max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6 w-full animate-fadeIn">
       
       {/* 顶部主切换栏 */}
       <section className="mb-8">

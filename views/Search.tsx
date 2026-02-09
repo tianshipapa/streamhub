@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import { Movie, SearchProps } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -217,7 +218,7 @@ const Search: React.FC<SearchProps> = ({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-fadeIn">
+    <main className="flex-grow w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6 space-y-8 animate-fadeIn">
       <section className="space-y-4">
         {/* 顶部标题与聚合开关 */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
