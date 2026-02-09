@@ -221,16 +221,16 @@ const Search: React.FC<SearchProps> = ({
     <main className="flex-grow w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6 space-y-8 animate-fadeIn">
       <section className="space-y-4">
         {/* 顶部标题与聚合开关 */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between space-y-4 md:space-y-0">
             <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
                     搜索结果 <span className="text-lg font-normal text-gray-500">{savedState.results.length > 0 ? `${savedState.results.length}条` : ''}</span>
                 </h2>
             </div>
-             <div className="flex items-center gap-4">
+             <div className="flex items-center space-x-4">
                 <button 
                     onClick={toggleAggregateMode}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-full border transition-all text-xs font-bold shadow-sm ${savedState.isAggregate ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/20' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
+                    className={`flex items-center space-x-2 px-6 py-2 rounded-full border transition-all text-xs font-bold shadow-sm ${savedState.isAggregate ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/20' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
                 >
                     <Icon name={savedState.isAggregate ? "layers" : "layers_clear"} className="text-base" />
                     聚合搜索: {savedState.isAggregate ? '开启' : '关闭'}
@@ -240,10 +240,10 @@ const Search: React.FC<SearchProps> = ({
         
         {/* 筛选与排序工具栏 */}
         {savedState.hasSearched && !savedState.loading && savedState.results.length > 0 && (
-             <div className="flex flex-wrap items-center gap-6 py-2">
+             <div className="flex flex-wrap items-center space-x-6 py-2">
                  {/* 来源筛选 (如果开启了聚合) */}
                  <div className="relative group">
-                     <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-white transition-colors py-2">
+                     <button className="flex items-center space-x-1 text-sm text-gray-500 hover:text-white transition-colors py-2">
                          来源 <Icon name="expand_more" className="text-sm" />
                      </button>
                      {/* 来源下拉 */}
@@ -277,7 +277,7 @@ const Search: React.FC<SearchProps> = ({
 
                  {/* 年份筛选 */}
                  <div className="relative z-20" onMouseEnter={() => setShowYearMenu(true)} onMouseLeave={() => setShowYearMenu(false)}>
-                     <button className={`flex items-center gap-1 text-sm transition-colors py-2 ${yearFilter !== 'all' ? 'text-green-500 font-bold' : 'text-gray-500 hover:text-white'}`}>
+                     <button className={`flex items-center space-x-1 text-sm transition-colors py-2 ${yearFilter !== 'all' ? 'text-green-500 font-bold' : 'text-gray-500 hover:text-white'}`}>
                          {yearFilter === 'all' ? '年份' : yearFilter === 'unknown' ? '未知年份' : yearFilter} 
                          <Icon name="expand_more" className="text-sm" />
                      </button>
@@ -314,7 +314,7 @@ const Search: React.FC<SearchProps> = ({
                  {/* 年份排序 */}
                  <button 
                     onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                    className="flex items-center gap-1 text-sm text-green-500 hover:text-green-400 transition-colors ml-2"
+                    className="flex items-center space-x-1 text-sm text-green-500 hover:text-green-400 transition-colors ml-2"
                  >
                      年份 <Icon name={sortOrder === 'desc' ? "arrow_downward" : "arrow_upward"} className="text-sm font-bold" />
                  </button>

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { Movie, HomeViewState } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -131,7 +132,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
     <div className="animate-fadeIn w-full relative">
       {/* 豆瓣专属导航栏 */}
       <nav className="mb-8 overflow-x-auto hide-scrollbar">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center space-x-2">
             {/* 类型切换组 */}
             <div className="flex p-1 bg-gray-100 dark:bg-slate-800 rounded-xl mr-2 border border-gray-200 dark:border-gray-700 h-9 flex-shrink-0">
                 <button 
@@ -153,7 +154,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
                 <button 
                     key={tag} 
                     onClick={() => handleTagChange(tag)} 
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 ${state.doubanTag === tag ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 mb-2 ${state.doubanTag === tag ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}
                 >
                     {tag}
                 </button>
@@ -161,7 +162,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
 
             {/* 自定义标签 */}
             {customTags.map(tag => (
-                <div key={tag} className="group relative flex-shrink-0">
+                <div key={tag} className="group relative flex-shrink-0 mb-2">
                     <button 
                         onClick={() => handleTagChange(tag)} 
                         className={`pl-4 pr-8 py-1.5 rounded-full text-sm font-medium transition-all border-dashed ${state.doubanTag === tag ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-300'}`}
@@ -180,7 +181,7 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
             {/* 添加标签按钮 */}
             <button 
                 onClick={() => setShowAddTag(true)} 
-                className="w-8 h-8 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-pink-500 hover:border-pink-500 transition-all flex-shrink-0"
+                className="w-8 h-8 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-pink-500 hover:border-pink-500 transition-all flex-shrink-0 mb-2"
             >
                 <Icon name="add" className="text-xl" />
             </button>

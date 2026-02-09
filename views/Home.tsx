@@ -402,38 +402,38 @@ const Home: React.FC<ExtendedHomeProps> = ({
       
       {/* 顶部主切换栏 */}
       <section className="mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all duration-300">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all duration-300">
              <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto overflow-x-auto hide-scrollbar">
                 <button 
                     onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
-                    className={`flex-shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                    <Icon name="dns" className="text-lg" />源站
+                    <Icon name="dns" className="text-lg" /><span>源站</span>
                 </button>
                 <button 
                     onClick={() => { setMode('DOUBAN'); onStateUpdate({ isDoubanMode: true }); }}
-                    className={`flex-shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'DOUBAN' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'DOUBAN' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                    <Icon name="auto_awesome" className="text-lg" />豆瓣
+                    <Icon name="auto_awesome" className="text-lg" /><span>豆瓣</span>
                 </button>
                 <button 
                     onClick={() => setMode('FAVORITE')}
-                    className={`flex-shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'FAVORITE' ? 'bg-amber-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'FAVORITE' ? 'bg-amber-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                    <Icon name="bookmark" className="text-lg" />收藏
+                    <Icon name="bookmark" className="text-lg" /><span>收藏</span>
                 </button>
                 <button 
                     onClick={() => setMode('SETTINGS')}
-                    className={`flex-shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SETTINGS' ? 'bg-gray-800 text-white shadow-lg dark:bg-slate-100 dark:text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SETTINGS' ? 'bg-gray-800 text-white shadow-lg dark:bg-slate-100 dark:text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                    <Icon name="settings" className="text-lg" />设置
+                    <Icon name="settings" className="text-lg" /><span>设置</span>
                 </button>
              </div>
 
              {mode === 'SOURCE' && (
                 <div className="relative w-full sm:w-auto">
-                   <button onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)} className="w-full flex items-center justify-between gap-3 bg-gray-50 dark:bg-slate-900 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all cursor-pointer">
-                      <div className="flex items-center gap-2"><Icon name="settings_input_component" className="text-blue-500" /><span className="truncate max-w-[120px]">{currentSource.name}</span></div>
+                   <button onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)} className="w-full flex items-center justify-between space-x-3 bg-gray-50 dark:bg-slate-900 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all cursor-pointer">
+                      <div className="flex items-center space-x-2"><Icon name="settings_input_component" className="text-blue-500" /><span className="truncate max-w-[120px]">{currentSource.name}</span></div>
                       <Icon name="expand_more" className={`transition-transform ${isSourceMenuOpen ? 'rotate-180' : ''}`} />
                    </button>
                    {isSourceMenuOpen && (
@@ -447,7 +447,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => { setMode('SETTINGS'); setIsSourceMenuOpen(false); }} className="w-full py-3 text-[10px] font-bold text-gray-400 hover:bg-gray-50 border-t border-gray-100 flex items-center justify-center gap-2 uppercase tracking-wider">管理源站列表</button>
+                        <button onClick={() => { setMode('SETTINGS'); setIsSourceMenuOpen(false); }} className="w-full py-3 text-[10px] font-bold text-gray-400 hover:bg-gray-50 border-t border-gray-100 flex items-center justify-center space-x-2 uppercase tracking-wider">管理源站列表</button>
                       </div></>
                    )}
                 </div>
@@ -460,11 +460,11 @@ const Home: React.FC<ExtendedHomeProps> = ({
         <section className="min-h-[60vh] animate-fadeIn space-y-8 pb-20">
             {/* ... 设置页面内容 ... */}
             {/* 顶层工具栏：数据同步与备份 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> // Android 4.4 Grid fallback handled by Tailwind/PostCSS usually, or ignored. Flex is better if grid fails.
                 {/* 1. 数据同步（源列表） */}
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center">
                                 <Icon name="cloud_sync" />
                             </div>
@@ -473,15 +473,15 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                 <p className="text-[10px] text-gray-500">同步您的自定义源</p>
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex space-x-2 w-full sm:w-auto">
                             <button onClick={exportSourcesData} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-blue-50 transition-all">导出本地</button>
                             <button onClick={() => sourceFileRef.current?.click()} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-blue-50 transition-all">导入本地</button>
                             <input type="file" ref={sourceFileRef} onChange={handleSourceUpload} accept=".json" className="hidden" />
                         </div>
                     </div>
                     {/* 远程源导入框 */}
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex-1 flex gap-2">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex-1 flex space-x-2">
                              <select
                                 className="w-24 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none dark:text-white"
                                 onChange={(e) => {
@@ -506,18 +506,18 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         <button 
                             onClick={handleRemoteSourceImport}
                             disabled={isImporting || !remoteSourceUrl}
-                            className={`w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${isImporting ? 'opacity-50' : 'hover:bg-blue-700 active:scale-95'}`}
+                            className={`w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-bold transition-all flex items-center justify-center space-x-1 ${isImporting ? 'opacity-50' : 'hover:bg-blue-700 active:scale-95'}`}
                         >
                             <Icon name={isImporting ? "sync" : "cloud_download"} className={`text-sm ${isImporting ? 'animate-spin' : ''}`} />
-                            网络导入
+                            <span>网络导入</span>
                         </button>
                     </div>
                 </div>
 
                 {/* 2. 全量维护（一键备份） */}
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl flex items-center justify-center">
                                 <Icon name="backup" />
                             </div>
@@ -526,14 +526,14 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                 <p className="text-[10px] text-gray-500">备份历史、收藏、源站等数据</p>
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex space-x-2 w-full sm:w-auto">
                             <button onClick={exportFullBackup} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-amber-50 transition-all">保存备份</button>
                             <button onClick={() => backupFileRef.current?.click()} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-amber-50 transition-all">还原备份</button>
                             <input type="file" ref={backupFileRef} onChange={handleBackupUpload} accept=".json" className="hidden" />
                         </div>
                     </div>
                     {/* 远程备份还原框 */}
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <input 
                             type="url" 
                             placeholder="输入全量备份 JSON 链接..." 
@@ -544,18 +544,18 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         <button 
                             onClick={handleRemoteBackupImport}
                             disabled={isImporting || !remoteBackupUrl}
-                            className={`px-4 py-2 rounded-xl bg-amber-600 text-white text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${isImporting ? 'opacity-50' : 'hover:bg-amber-700 active:scale-95'}`}
+                            className={`px-4 py-2 rounded-xl bg-amber-600 text-white text-[10px] font-bold transition-all flex items-center justify-center space-x-1 ${isImporting ? 'opacity-50' : 'hover:bg-amber-700 active:scale-95'}`}
                         >
                             <Icon name={isImporting ? "sync" : "cloud_sync"} className={`text-sm ${isImporting ? 'animate-spin' : ''}`} />
-                            远程还原
+                            <span>远程还原</span>
                         </button>
                     </div>
                 </div>
 
                 {/* 3. 加速播放设置 */}
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5 md:col-span-2">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-xl flex items-center justify-center">
                                 <Icon name="bolt" />
                             </div>
@@ -564,8 +564,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                 <p className="text-[10px] text-gray-500">为每个播放链接添加前置链接，提升加载速度</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                             <div className="flex items-center gap-2">
+                        <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-start">
+                             <div className="flex items-center space-x-2">
                                 <span className={`text-[10px] font-bold uppercase ${accConfig.enabled ? 'text-green-500' : 'text-gray-400'}`}>
                                     {accConfig.enabled ? '已启用' : '已禁用'}
                                 </span>
@@ -578,7 +578,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                              </div>
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <input 
                             type="url" 
                             placeholder="输入加速前置链接 (默认: https://cfkua.wokaotianshi.eu.org)..." 
@@ -588,10 +588,10 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         />
                         <button 
                             onClick={saveAcceleration}
-                            className="px-6 py-2.5 rounded-xl bg-green-600 text-white text-[10px] font-bold hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                            className="px-6 py-2.5 rounded-xl bg-green-600 text-white text-[10px] font-bold hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
                         >
                             <Icon name="save" className="text-sm" />
-                            保存修改
+                            <span>保存修改</span>
                         </button>
                     </div>
                     <p className="text-[10px] text-gray-400 italic">注：启用后，播放链接将变为：[前置链接]/[原始链接]（全局生效）</p>
@@ -599,8 +599,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
 
                 {/* 4. 豆瓣图片代理设置 */}
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5 md:col-span-2">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-pink-50 dark:bg-pink-900/20 text-pink-600 rounded-xl flex items-center justify-center">
                                 <Icon name="image" />
                             </div>
@@ -610,7 +610,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <input 
                             type="url" 
                             placeholder={`输入代理地址 (默认: ${DEFAULT_DOUBAN_PROXY})...`} 
@@ -618,7 +618,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                             value={doubanProxyInput}
                             onChange={(e) => setDoubanProxyInput(e.target.value)}
                         />
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex space-x-2 w-full sm:w-auto">
                             <button 
                                 onClick={resetDoubanProxy}
                                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-[10px] font-bold hover:bg-gray-200 transition-all"
@@ -627,10 +627,10 @@ const Home: React.FC<ExtendedHomeProps> = ({
                             </button>
                             <button 
                                 onClick={saveDoubanProxy}
-                                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-pink-600 text-white text-[10px] font-bold hover:bg-pink-700 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-pink-600 text-white text-[10px] font-bold hover:bg-pink-700 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
                             >
                                 <Icon name="save" className="text-sm" />
-                                保存
+                                <span>保存</span>
                             </button>
                         </div>
                     </div>
@@ -641,31 +641,31 @@ const Home: React.FC<ExtendedHomeProps> = ({
             {/* 核心管理列表 */}
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden flex flex-col">
                 {/* 列表头部操作 */}
-                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-slate-900/80 flex flex-col gap-4">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-slate-900/80 flex flex-col space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap space-x-2">
                             <div className="flex bg-white dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-gray-700">
                                 <button 
                                     onClick={handleSelectAll}
-                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center space-x-1.5"
                                 >
                                     <Icon name="done_all" className="text-blue-500" /> <span className="hidden sm:inline">全选</span>
                                 </button>
                                 <button 
                                     onClick={handleDeselectAll}
-                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5 border-l border-gray-100 dark:border-gray-700"
+                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center space-x-1.5 border-l border-gray-100 dark:border-gray-700"
                                 >
                                     <Icon name="close" className="text-red-500" /> <span className="hidden sm:inline">取消</span>
                                 </button>
                             </div>
                             <span className="text-[10px] sm:text-[11px] text-gray-400 font-bold bg-gray-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700">已选 {selectedApis.size}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center space-x-2">
                             <button onClick={onResetSources} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-red-500 border border-red-100 hover:bg-red-50 transition-all">重置默认</button>
-                            <button onClick={() => setShowAddSource(true)} className="px-3 sm:px-4 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] sm:text-xs font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-1.5">
+                            <button onClick={() => setShowAddSource(true)} className="px-3 sm:px-4 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] sm:text-xs font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center space-x-1.5">
                                 <Icon name="add_link" className="text-sm" /> 新增
                             </button>
-                            <button onClick={runSourceCheck} disabled={isCheckingSources} className="px-3 sm:px-4 py-1.5 bg-gray-100 dark:bg-slate-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1.5">
+                            <button onClick={runSourceCheck} disabled={isCheckingSources} className="px-3 sm:px-4 py-1.5 bg-gray-100 dark:bg-slate-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] sm:text-xs font-bold flex items-center space-x-1.5">
                                 <Icon name={isCheckingSources ? "sync" : "health_and_safety"} className={isCheckingSources ? "animate-spin" : ""} />
                                 <span className="hidden sm:inline">检测</span>
                             </button>
@@ -673,10 +673,10 @@ const Home: React.FC<ExtendedHomeProps> = ({
                     </div>
 
                     {selectedApis.size > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 animate-fadeIn pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <button onClick={() => handleBatchEnable(true)} className="flex-1 sm:flex-none px-3 py-1.5 bg-green-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-green-600 flex items-center justify-center gap-1"><Icon name="visibility" className="text-sm" /> 启用</button>
-                            <button onClick={() => handleBatchEnable(false)} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-gray-600 flex items-center justify-center gap-1"><Icon name="visibility_off" className="text-sm" /> 禁用</button>
-                            <button onClick={handleBatchDelete} className="flex-1 sm:flex-none px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-red-700 flex items-center justify-center gap-1"><Icon name="delete_sweep" className="text-sm" /> 删除</button>
+                        <div className="flex flex-wrap items-center space-x-2 animate-fadeIn pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <button onClick={() => handleBatchEnable(true)} className="flex-1 sm:flex-none px-3 py-1.5 bg-green-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-green-600 flex items-center justify-center space-x-1"><Icon name="visibility" className="text-sm" /> 启用</button>
+                            <button onClick={() => handleBatchEnable(false)} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-gray-600 flex items-center justify-center space-x-1"><Icon name="visibility_off" className="text-sm" /> 禁用</button>
+                            <button onClick={handleBatchDelete} className="flex-1 sm:flex-none px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-red-700 flex items-center justify-center space-x-1"><Icon name="delete_sweep" className="text-sm" /> 删除</button>
                         </div>
                     )}
                 </div>
@@ -695,12 +695,12 @@ const Home: React.FC<ExtendedHomeProps> = ({
                 )}
 
                 {maintenanceStats && !isCheckingSources && (
-                    <div className="px-4 sm:px-6 py-4 bg-green-50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
-                        <div className="text-[11px] sm:text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
+                    <div className="px-4 sm:px-6 py-4 bg-green-50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 animate-fadeIn">
+                        <div className="text-[11px] sm:text-xs font-bold text-green-700 dark:text-green-400 flex items-center space-x-2">
                             <Icon name="check_circle" className="text-lg" />
                             扫描完成：发现 {maintenanceStats.dead} 个失效，{maintenanceStats.duplicates} 个重复。
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex space-x-2 w-full sm:w-auto">
                             <button onClick={() => setMaintenanceStats(null)} className="flex-1 sm:flex-none px-3 py-1.5 bg-white dark:bg-slate-800 text-gray-500 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-700">忽略</button>
                             <button onClick={confirmCleanup} className="flex-1 sm:flex-none px-4 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold shadow-md">应用优化</button>
                         </div>
@@ -723,9 +723,9 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                 return (
                                     <div 
                                         key={`${s.api}-${idx}`}
-                                        className={`flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-5 hover:bg-gray-50/80 dark:hover:bg-slate-900/80 transition-all ${!isEnabled ? 'bg-gray-50/20 opacity-60' : ''}`}
+                                        className={`flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-6 px-4 sm:px-6 py-4 sm:py-5 hover:bg-gray-50/80 dark:hover:bg-slate-900/80 transition-all ${!isEnabled ? 'bg-gray-50/20 opacity-60' : ''}`}
                                     >
-                                        <div className="flex items-center gap-4 sm:gap-6">
+                                        <div className="flex items-center space-x-6">
                                             {/* 选择 */}
                                             <button 
                                                 onClick={() => handleHandleToggleSelect(s.api)}
@@ -735,11 +735,11 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                             </button>
 
                                             {/* 图标与基本信息 */}
-                                            <div className="flex items-center gap-3 min-w-0 flex-grow">
+                                            <div className="flex items-center space-x-3 min-w-0 flex-grow">
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${s.isCustom ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30'}`}>
                                                     <Icon name={s.isCustom ? "person" : "verified"} />
                                                 </div>
-                                                <div className="flex items-center gap-2 truncate">
+                                                <div className="flex items-center space-x-2 truncate">
                                                     <span className={`text-sm font-bold truncate ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
                                                         {s.name}
                                                     </span>
@@ -749,7 +749,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                         </div>
 
                                         {/* API URL 与 操作按钮 - 在移动端占据独立一行 */}
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-grow sm:justify-between min-w-0 pl-10 sm:pl-0">
+                                        <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:flex-grow sm:justify-between min-w-0 pl-10 sm:pl-0">
                                             <div 
                                                 onClick={() => copyToClipboard(s.api)}
                                                 className="text-[10px] text-gray-400 font-mono break-all sm:truncate max-w-full sm:max-w-xs md:max-w-md lg:max-w-xl hover:text-blue-500 cursor-pointer transition-colors"
@@ -758,8 +758,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                                 {s.api}
                                             </div>
 
-                                            <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 border-t sm:border-t-0 border-gray-100 dark:border-gray-800 pt-3 sm:pt-0">
-                                                <div className="flex items-center gap-3">
+                                            <div className="flex items-center justify-between sm:justify-end space-x-6 border-t sm:border-t-0 border-gray-100 dark:border-gray-800 pt-3 sm:pt-0">
+                                                <div className="flex items-center space-x-3">
                                                     <span className={`text-[11px] font-black tracking-tight ${isEnabled ? 'text-emerald-500' : 'text-gray-400'}`}>
                                                         {isEnabled ? '已启用' : '已停用'}
                                                     </span>
@@ -771,7 +771,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                                                     </button>
                                                 </div>
 
-                                                <div className="flex items-center gap-1 sm:gap-2">
+                                                <div className="flex items-center space-x-2">
                                                     <button onClick={() => copyToClipboard(s.api)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-all">
                                                         <Icon name={copiedUrl === s.api ? "check" : "content_copy"} className="text-lg" />
                                                     </button>
@@ -792,7 +792,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
             </div>
 
             <div className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/20">
-                <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400 mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400 mb-3 flex items-center space-x-2">
                     <Icon name="info" className="text-lg" /> 进阶提示
                 </h4>
                 <ul className="text-xs text-blue-600/70 dark:text-blue-400/70 space-y-2 list-disc pl-4 font-medium">
@@ -808,10 +808,10 @@ const Home: React.FC<ExtendedHomeProps> = ({
             // 源站模式：显示分类
             mode === 'SOURCE' && (
                 <nav className="mb-8 overflow-x-auto hide-scrollbar">
-                    <div className="flex flex-wrap gap-2">
-                        <button onClick={() => { onStateUpdate({ activeCategoryId: '', movies: [] }); loadData(currentSource.api, '', 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${savedState.activeCategoryId === '' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>全部</button>
+                    <div className="flex flex-wrap space-x-2 space-y-2 items-center">
+                        <button onClick={() => { onStateUpdate({ activeCategoryId: '', movies: [] }); loadData(currentSource.api, '', 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all mt-2 ${savedState.activeCategoryId === '' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>全部</button>
                         {savedState.categories.map(cat => (
-                            <button key={cat.id} onClick={() => { onStateUpdate({ activeCategoryId: cat.id, movies: [] }); loadData(currentSource.api, cat.id, 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${savedState.activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>{cat.name}</button>
+                            <button key={cat.id} onClick={() => { onStateUpdate({ activeCategoryId: cat.id, movies: [] }); loadData(currentSource.api, cat.id, 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all mt-2 ${savedState.activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>{cat.name}</button>
                         ))}
                     </div>
                 </nav>
@@ -821,8 +821,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
           {/* 历史记录条 (仅在源站模式显示，避免豆瓣模式太杂乱) */}
           {history.length > 0 && mode === 'SOURCE' && (
             <section className="mb-10">
-              <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><Icon name="history" className="text-blue-500" /> 播放历史</h2><button onClick={() => { if(confirmClear){ clearHistory(); setHistory([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(()=>setConfirmClear(false), 3000); } }} className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"><Icon name={confirmClear ? "warning" : "delete_outline"} className="text-sm" />{confirmClear ? "确认清除" : "清空"}</button></div>
-              <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+              <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold flex items-center space-x-2"><Icon name="history" className="text-blue-500" /> 播放历史</h2><button onClick={() => { if(confirmClear){ clearHistory(); setHistory([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(()=>setConfirmClear(false), 3000); } }} className="text-xs text-gray-400 hover:text-red-500 flex items-center space-x-1"><Icon name={confirmClear ? "warning" : "delete_outline"} className="text-sm" />{confirmClear ? "确认清除" : "清空"}</button></div>
+              <div className="flex space-x-4 overflow-x-auto pb-4 hide-scrollbar">
                 {history.slice(0, 10).map(m => (
                     <div key={m.id} className="min-w-[140px] max-w-[140px] relative group">
                         <MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} />
@@ -841,12 +841,12 @@ const Home: React.FC<ExtendedHomeProps> = ({
 
           <section className="min-h-[60vh]">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
                     <span className={`w-1.5 h-6 rounded-full ${mode === 'DOUBAN' ? 'bg-pink-500' : mode === 'FAVORITE' ? 'bg-amber-500' : 'bg-blue-600'}`}></span>
                     {mode === 'DOUBAN' ? `豆瓣推荐: ${savedState.doubanTag}` : mode === 'FAVORITE' ? '我的收藏' : (savedState.activeCategoryId ? savedState.categories.find(c => c.id === savedState.activeCategoryId)?.name : '最新更新')}
                 </h2>
                 {mode === 'FAVORITE' && (
-                   <button onClick={handleClearFavs} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${confirmClearFav ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                   <button onClick={handleClearFavs} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${confirmClearFav ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
                        <Icon name={confirmClearFav ? "priority_high" : "delete_sweep"} className="text-lg" />
                        {confirmClearFav ? "确认清空收藏" : "清空全部"}
                    </button>
@@ -872,7 +872,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                     {favorites.length === 0 && <div className="w-full py-20 flex flex-col items-center text-gray-400 italic"><Icon name="collections_bookmark" className="text-5xl mb-4" /><p>收藏夹空空如也，快去收藏喜欢的影视吧</p></div>}
                 </div>
             ) : savedState.loading && savedState.movies.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 gap-4"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
+                <div className="flex flex-col items-center justify-center py-24 space-y-4"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
             ) : savedState.error && savedState.movies.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                     <Icon name="error_outline" className="text-5xl text-gray-300 mb-4" />
@@ -890,7 +890,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         ))}
                     </div>
                     {savedState.movies.length > 0 && (
-                        <div className="mt-16 flex justify-center pb-12"><button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)} disabled={savedState.loading} className={`flex items-center gap-3 px-10 py-3.5 rounded-full font-bold transition-all shadow-lg ${savedState.loading ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200'}`}>{savedState.loading ? '加载中...' : '加载更多内容'}</button></div>
+                        <div className="mt-16 flex justify-center pb-12"><button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)} disabled={savedState.loading} className={`flex items-center space-x-3 px-10 py-3.5 rounded-full font-bold transition-all shadow-lg ${savedState.loading ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200'}`}>{savedState.loading ? '加载中...' : '加载更多内容'}</button></div>
                     )}
                 </>
             )}
@@ -901,12 +901,12 @@ const Home: React.FC<ExtendedHomeProps> = ({
       {/* 模态框逻辑 */}
       {showAddSource && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddSource(false)}></div><form onSubmit={handleAddSourceSubmit} className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
-                <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-2"><Icon name="add_circle" className="text-blue-500" />添加自定义采集源</h3>
+                <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center space-x-2"><Icon name="add_circle" className="text-blue-500" />添加自定义采集源</h3>
                 <div className="space-y-4">
                     <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">源站名称</label><input autoFocus required type="text" placeholder="例如：量子资源" className="w-full bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all dark:text-white" value={newSourceName} onChange={e => setNewSourceName(e.target.value)}/></div>
                     <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">API 地址</label><input required type="url" placeholder="https://.../api.php/provide/vod/" className="w-full bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all dark:text-white" value={newSourceApi} onChange={e => setNewSourceApi(e.target.value)}/></div>
                 </div>
-                <div className="flex gap-3 mt-8"><button type="button" onClick={() => setShowAddSource(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">取消</button><button type="submit" className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-blue-600 text-white shadow-lg">确认添加</button></div>
+                <div className="flex space-x-3 mt-8"><button type="button" onClick={() => setShowAddSource(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">取消</button><button type="submit" className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-blue-600 text-white shadow-lg">确认添加</button></div>
             </form></div>
       )}
       

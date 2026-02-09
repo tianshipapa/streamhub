@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ViewState, Movie, PlayerProps, Source } from '../types';
 import { Icon } from '../components/Icon';
@@ -646,8 +647,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   if (loading) {
       return (
-        <div className="flex flex-col justify-center items-center h-[60vh] sm:h-[70vh] animate-fadeIn">
-            <div className="text-gray-400 text-sm animate-pulse flex items-center gap-2">
+        <div className="flex flex-col justify-center items-center h-[60vh] sm:h-[70vh] animate-fadeIn space-y-2">
+            <div className="text-gray-400 text-sm animate-pulse flex items-center space-x-2">
                 <Icon name="sync" className="animate-spin text-base" />
                 正在加载资源...
             </div>
@@ -732,10 +733,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)}></div>
           <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><Icon name="share" className="text-blue-500" />分享播放链接</h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center space-x-2"><Icon name="share" className="text-blue-500" />分享播放链接</h3>
             <div className="bg-gray-100 dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 break-all text-xs font-mono select-all">{currentUrl}</div>
-            <button onClick={() => copyToClipboard(currentUrl)} className={`w-full mt-6 flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold transition-all ${isCopied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>
-                <Icon name={isCopied ? "check_circle" : "content_copy"} />{isCopied ? '已复制' : '复制链接'}
+            <button onClick={() => copyToClipboard(currentUrl)} className={`w-full mt-6 flex items-center justify-center space-x-2 py-3.5 rounded-xl font-bold transition-all ${isCopied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>
+                <Icon name={isCopied ? "check_circle" : "content_copy"} /><span>{isCopied ? '已复制' : '复制链接'}</span>
             </button>
           </div>
         </div>
@@ -743,40 +744,40 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
       <section className="relative w-full rounded-2xl overflow-hidden shadow-2xl bg-black" style={{ paddingBottom: `${playerRatio}%` }}>
          <div ref={containerRef} className="absolute inset-0 w-full h-full"></div>
-         {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>{cleanStatus}</div></div>}
+         {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
-             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+             <div className="flex flex-col sm:flex-row sm:items-end justify-between space-y-4 sm:space-y-0">
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{details.title}</h1>
-                    <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400 items-center">
+                    <div className="flex flex-wrap text-xs text-gray-500 dark:text-gray-400 items-center space-x-3">
                         <span className="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">{details.genre}</span>
                         <span>{details.year}</span><span>{details.badge}</span>
                         <span className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">当前源: {currentSource.name}</span>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => setShowShareModal(true)} className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium"><Icon name="share" className="text-lg" />分享</button>
-                    <button onClick={handleFavoriteToggle} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}>
+                <div className="flex space-x-2">
+                    <button onClick={() => setShowShareModal(true)} className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium"><Icon name="share" className="text-lg" /><span>分享</span></button>
+                    <button onClick={handleFavoriteToggle} className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}>
                         <Icon name={isFavorited ? "bookmark" : "bookmark_border"} className="text-lg" />
-                        {isFavorited ? '已收藏' : '收藏'}
+                        <span>{isFavorited ? '已收藏' : '收藏'}</span>
                     </button>
                 </div>
              </div>
              
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center gap-2"><Icon name="description" className="text-blue-500 text-lg" /> 剧情简介</h3>
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center space-x-2"><Icon name="description" className="text-blue-500 text-lg" /> <span>剧情简介</span></h3>
                 <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400 line-clamp-6">{details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}</p>
              </div>
 
              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Icon name="swap_horiz" className="text-blue-500 text-lg" /> 全网切源检测</h3>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white mb-4 flex items-center space-x-2"><Icon name="swap_horiz" className="text-blue-500 text-lg" /> <span>全网切源检测</span></h3>
                 <div className="max-h-72 overflow-y-auto pr-1 custom-scrollbar space-y-2.5">
                     {sortedAltSources.map((alt, idx) => (
                         <button key={idx} onClick={() => handleAltSourceClick(alt)} disabled={alt.searching} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all ${alt.source.api === currentSource.api ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400'}`}>
-                            <div className="flex items-center gap-3 text-left">
+                            <div className="flex items-center space-x-3 text-left">
                                 <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-500"><Icon name="dns" className="text-lg" /></div>
                                 <div><div className="text-sm font-bold dark:text-white">{alt.source.name}</div><div className="text-[10px] text-gray-400">{alt.searching ? '检索中...' : (alt.movie ? `匹配成功` : '无结果')}</div></div>
                             </div>
@@ -789,17 +790,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                    <Icon name="playlist_play" className="text-blue-500 text-lg" /> 选集列表
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
+                    <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
                 </h3>
-                <button onClick={toggleTempAcceleration} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}>
+                <button onClick={toggleTempAcceleration} className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}>
                     <Icon name="bolt" className="text-xs" />
-                    {effectiveAccEnabled ? '加速已开启' : '点击加速'}
+                    <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
                 </button>
             </div>
             <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
             {episodeSections.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
+                <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
                     {episodeSections.map((sec, idx) => (
                         <button key={idx} onClick={() => setCurrentSectionIndex(idx)} className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}>{sec.label}</button>
                     ))}
