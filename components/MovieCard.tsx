@@ -38,7 +38,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
       onClick({ 
           ...movie, 
           sourceApi: api, 
-          sourceName: name,
+          sourceName: name, 
           id: vodId || movie.id, 
           vod_id: vodId || movie.vod_id 
       });
@@ -79,32 +79,44 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
            )}
         </div>
 
-        {/* 顶部标签：年份 */}
-        {movie.year && (
-             <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-md text-[10px] shadow-sm bg-black/60 text-white z-10 font-bold border border-white/10 flex items-center gap-1">
-                 {movie.year}
-             </div>
-        )}
-
-        {/* 顶部标签：备注/状态 */}
-        {movie.badge && (
-          <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-md backdrop-blur-md text-[10px] shadow-sm ${movie.badgeColor === 'primary' ? 'bg-amber-500 text-white' : 'bg-black/60 text-white'} z-10 font-bold border border-white/10`}>
-            {movie.badge}
-          </div>
-        )}
+        {/* 左上角信息聚合：源名称 + (年代 & 状态) */}
+        {/* 修改：left-2 right-2 使容器占满顶部宽度，实现第二行信息的两端对齐 */}
+        <div className="absolute top-2 left-2 right-2 z-20 flex flex-col space-y-1 pointer-events-none">
+            {/* 第一行：源名称 (有源名称且不是纯豆瓣数据时显示) */}
+            {movie.sourceName && !movie.isDouban && (
+                <div className="self-start px-1.5 py-0.5 rounded-md bg-blue-600/90 text-white text-[10px] font-bold shadow-sm border border-white/10 backdrop-blur-md truncate max-w-full">
+                    {movie.sourceName}
+                </div>
+            )}
+            
+            {/* 第二行：年代 + 状态 (两端对齐 justify-between) */}
+            <div className="flex items-center justify-between w-full">
+                {movie.year ? (
+                    <div className="px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-bold shadow-sm border border-white/10 backdrop-blur-md">
+                        {movie.year}
+                    </div>
+                ) : <div></div> /* 占位确保 justify-between 生效 */}
+                
+                {movie.badge && (
+                    <div className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shadow-sm border border-white/10 backdrop-blur-md ${movie.badgeColor === 'primary' ? 'bg-amber-500 text-white' : 'bg-black/60 text-white'}`}>
+                        {movie.badge}
+                    </div>
+                )}
+            </div>
+        </div>
 
         {/* 底部浮层 */}
         <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center pointer-events-none z-20">
              {movie.rating && movie.rating > 0 && (
-                <div className="bg-black/70 backdrop-blur-sm text-yellow-400 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 border border-white/5">
+                <div className="bg-black/70 backdrop-blur-sm text-yellow-400 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center space-x-1 border border-white/5">
                     <Icon name="star" className="text-[12px]" />
-                    {movie.rating.toFixed(1)}
+                    <span>{movie.rating.toFixed(1)}</span>
                 </div>
              )}
 
              {hasMultipleSources && (
                  <div 
-                    className="ml-auto pointer-events-auto bg-gray-800/90 hover:bg-gray-700 backdrop-blur-md text-white px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 border border-white/10 cursor-pointer transition-colors shadow-lg"
+                    className="ml-auto pointer-events-auto bg-gray-800/90 hover:bg-gray-700 backdrop-blur-md text-white px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center space-x-1 border border-white/10 cursor-pointer transition-colors shadow-lg"
                     onMouseEnter={() => setShowSourceSelector(true)}
                     onClick={(e) => { e.stopPropagation(); setShowSourceSelector(!showSourceSelector); }}
                  >
@@ -117,16 +129,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
         {/* 多源选择器浮层 */}
         {showSourceSelector && hasMultipleSources && (
             <div className="absolute bottom-10 right-2 w-40 bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-600 shadow-2xl z-30 overflow-hidden animate-fadeIn flex flex-col p-1">
-                 <div className="text-[10px] text-gray-400 px-2 py-1.5 border-b border-gray-700 font-bold flex items-center gap-1">
+                 <div className="text-[10px] text-gray-400 px-2 py-1.5 border-b border-gray-700 font-bold flex items-center space-x-1">
                      <Icon name="auto_awesome" className="text-xs text-purple-400" />
-                     AI聚合 • 请选择片源
+                     <span>AI聚合 • 请选择片源</span>
                  </div>
                  <div className="max-h-48 overflow-y-auto custom-scrollbar">
                      {movie.availableSources?.map((src, idx) => (
                          <div 
                             key={idx}
                             onClick={(e) => handleSourceClick(e, src.api, src.name, src.vodId)}
-                            className="px-3 py-2 text-xs text-gray-200 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors flex items-center gap-2 rounded-lg m-0.5"
+                            className="px-3 py-2 text-xs text-gray-200 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors flex items-center space-x-2 rounded-lg m-0.5"
                          >
                              <Icon name="movie" className="text-[12px] opacity-70" />
                              <span className="truncate">{src.name}</span>
