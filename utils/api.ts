@@ -1,4 +1,5 @@
 
+
 import { Movie, Category, Source } from '../types';
 
 // Detect Electron environment
@@ -122,16 +123,25 @@ const formatImageUrl = (url: string, apiHost: string, providedDomain?: string): 
     if (!url) return "";
     let cleaned = url.trim();
     
-    // 如果是完整链接，直接返回，不走代理
-    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
-    if (cleaned.startsWith('//')) return 'https:' + cleaned;
+    // 特殊处理：如果是本地文件环境（Electron/App）且图片是协议相对路径，强制补全 https
+    if (cleaned.startsWith('//')) {
+        if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+            return 'https:' + cleaned;
+        }
+        return cleaned;
+    }
+
+    // 如果是完整链接(http/https)，直接返回，不走代理
+    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+        return cleaned;
+    }
     
     // 处理相对路径
     const domain = (providedDomain || apiHost).replace(/\/$/, '');
     if (cleaned.startsWith('/')) return domain + cleaned;
-    if (!cleaned.includes('://')) return domain + '/' + cleaned;
     
-    return cleaned;
+    // 纯路径无斜杠
+    return domain + '/' + cleaned;
 };
 
 const getTagValue = (element: Element, tagNames: string[]): string => {

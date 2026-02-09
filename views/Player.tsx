@@ -145,7 +145,6 @@ const getButtonHtml = (label: string, time: number, isActive: boolean, color: st
     return `<span style="font-size: 11px; padding: 2px 10px; cursor: pointer; background: ${bg}; border-radius: 4px; border: 1px solid ${border}; color: white; display: inline-block; min-width: 45px; text-align: center; transition: all 0.2s;">${text}</span>`;
 };
 
-// --- 生成选集列表的 HTML (优化版，移除顶部标题栏) ---
 const generateEpisodeLayerHtml = (list: {name: string, url: string}[], current: string, sectionIndex: number) => {
     if (!list || list.length === 0) return '<div style="color:#aaa;text-align:center;padding:20px;">暂无选集</div>';
     
@@ -223,7 +222,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     currentUrlRef.current = currentUrl;
   }, [currentUrl]);
 
-  // 更新选集图层内容
   useEffect(() => {
     const updateLayer = () => {
          const html = generateEpisodeLayerHtml(playList, currentUrl, currentSectionIndex);
@@ -445,7 +443,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
             if (artRef.current) {
                 await artRef.current.switchUrl(finalUrl);
-                // 切换URL时，同时更新选集图层
                 if (episodeLayerRef.current) {
                     episodeLayerRef.current.innerHTML = generateEpisodeLayerHtml(playListRef.current, currentUrl, currentSectionIndex);
                 }
@@ -457,7 +454,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     url: finalUrl,
                     type: 'm3u8',
                     volume: 0.7,
-                    poster: details?.image, // 修复图片加载：使用提取的 vod_pic
+                    poster: details?.image, 
                     autoplay: true,
                     theme: '#2196F3',
                     lang: 'zh-cn',
@@ -478,12 +475,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     pip: false,
                     airplay: false,
                     icons: {
-                        // 使用自定义的复杂动画作为内部缓冲图标
-                        loading: `<div class="art-loading-custom">
-                                    <div class="art-loading-glow"></div>
-                                    <div class="art-loading-ring-outer"></div>
-                                    <div class="art-loading-ring-inner"></div>
-                                    <div class="art-loading-icon-bg"><i class="material-icons-round" style="font-size: 24px; color: #3b82f6;">smart_display</i></div>
+                        // 使用科技感缓冲图标
+                        loading: `<div class="art-buffering-animation">
+                                    <div class="ring-glow"></div>
+                                    <div class="ring-outer"></div>
+                                    <div class="ring-inner"></div>
+                                    <div class="icon-center"><i class="material-icons-round" style="font-size: 26px; color: #3b82f6;">smart_display</i></div>
                                   </div>`,
                     },
                     customType: {
@@ -530,21 +527,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                                     const target = e.target as HTMLElement;
                                     const item = target.closest('.art-ep-item');
                                     const tab = target.closest('.art-ep-tab');
-                                    
                                     if (target === $el) {
                                          $el.style.display = 'none';
                                          return;
                                     }
-
-                                    // 处理分页标签点击
                                     if (tab) {
                                         const idx = Number((tab as HTMLElement).dataset.index);
-                                        if (!isNaN(idx)) {
-                                            setCurrentSectionIndex(idx);
-                                        }
+                                        if (!isNaN(idx)) setCurrentSectionIndex(idx);
                                         return;
                                     }
-                                    
                                     if (item) {
                                          const url = (item as HTMLElement).dataset.url;
                                          if (url && url !== currentUrlRef.current) {
@@ -612,32 +603,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                             click: function () {
                                 const art = artRef.current;
                                 let layer = episodeLayerRef.current;
-                                
-                                if (!layer && art && art.template) {
-                                    layer = art.template.$container.querySelector('.art-ep-layer-box');
-                                }
-
-                                if (layer) {
-                                    if (layer.style.display === 'none' || !layer.style.display) {
-                                        layer.style.display = 'flex';
-                                    } else {
-                                        layer.style.display = 'none';
-                                    }
-                                }
+                                if (!layer && art && art.template) layer = art.template.$container.querySelector('.art-ep-layer-box');
+                                if (layer) layer.style.display = (layer.style.display === 'none' || !layer.style.display) ? 'flex' : 'none';
                             }
                         }
                     ],
                 });
                 artRef.current = art;
-
-                art.on('ready', () => {
-                    handleVideoReady(art);
-                });
-
+                art.on('ready', () => handleVideoReady(art));
                 art.on('fullscreen', (state: boolean) => { isFullscreenRef.current = state; });
                 art.on('fullscreenWeb', (state: boolean) => { isWebFullscreenRef.current = state; });
                 art.on('video:ratechange', () => { playbackRateRef.current = art.playbackRate; });
-
                 art.on('video:timeupdate', () => {
                     const time = art.currentTime;
                     const duration = art.duration;
@@ -654,24 +630,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         }
                     }
                 });
-
-                art.on('video:ended', () => { playNextEpisode(); });
+                art.on('video:ended', () => playNextEpisode());
             }
         } catch (e) { 
             console.error(e);
             setCleanStatus('播放器加载失败'); 
         }
     };
-
     playVideo();
-
     return () => {
         isMounted = false;
         if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
     };
   }, [currentUrl, movieId, effectiveAccEnabled]);
 
-  // 移除了初始的复杂加载动画，改为简单的文字提示
   if (loading) {
       return (
         <div className="flex flex-col justify-center items-center h-[60vh] sm:h-[70vh] animate-fadeIn">
@@ -687,19 +659,16 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   return (
     <main className="container mx-auto px-4 py-6 space-y-8 animate-fadeIn relative">
-       {/* 注入播放器相关样式 */}
        <style>{`
-        /* 滚动条样式优化 */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
         
         .art-control-volume { display: none !important; }
 
-        /* Artplayer 内部缓冲图标美化：移植自原来的初始加载动画 */
-        .art-loading-custom {
+        /* Artplayer 缓冲图标美化 */
+        .art-loading-custom, .art-buffering-animation {
             position: relative;
             width: 80px;
             height: 80px;
@@ -707,154 +676,56 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             align-items: center;
             justify-content: center;
         }
-        .art-loading-glow {
+        .ring-glow {
             position: absolute;
             inset: 0;
             background-color: rgba(59, 130, 246, 0.2);
-            border-radius: 9999px;
+            border-radius: 50%;
             filter: blur(12px);
-            animation: art-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            animation: ring-pulse 2s ease-in-out infinite;
         }
-        .art-loading-ring-outer {
+        .ring-outer {
             position: absolute;
             inset: 0;
             border: 2px solid transparent;
             border-top-color: rgba(59, 130, 246, 0.3);
             border-bottom-color: rgba(59, 130, 246, 0.3);
-            border-radius: 9999px;
+            border-radius: 50%;
             animation: art-spin 3s linear infinite;
         }
-        .art-loading-ring-inner {
+        .ring-inner {
             position: absolute;
             inset: 8px;
             border: 2px solid transparent;
-            border-left-color: #2563eb;
-            border-right-color: transparent;
-            border-radius: 9999px;
+            border-left-color: #3b82f6;
+            border-radius: 50%;
             animation: art-spin 1s ease-in-out infinite;
         }
-        .art-loading-icon-bg {
+        .icon-center {
             position: relative;
             z-index: 10;
-            width: 40px;
-            height: 40px;
-            background-color: rgba(30, 41, 59, 0.9);
-            border-radius: 9999px;
+            width: 44px;
+            height: 44px;
+            background-color: rgba(15, 23, 42, 0.9);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        
         @keyframes art-spin { to { transform: rotate(360deg); } }
-        @keyframes art-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        @keyframes ring-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
         
-        /* 选集列表样式系统 */
-        .art-ep-layer-box {
-            display: flex !important;
-            flex-direction: column;
-        }
-
-        /* 标签栏 - 水平滚动 */
-        .art-ep-tabs {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding-bottom: 6px;
-            margin-bottom: 8px;
-            margin-top: 0; /* 移除顶部外边距，因为现在是第一个元素 */
-            flex-shrink: 0;
-            white-space: nowrap;
-            scroll-behavior: smooth;
-        }
-        .art-ep-tab {
-            cursor: pointer;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            background: rgba(255,255,255,0.1);
-            color: #aaa;
-            border: 1px solid transparent;
-            transition: all 0.2s;
-        }
-        .art-ep-tab:hover {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-        .art-ep-tab.active {
-            background: #2196F3;
-            color: white;
-            border-color: #2196F3;
-        }
-
-        /* 列表区域 - 垂直滚动 + 响应式栅格 - Android 4.4 compat: replaced grid with flex */
-        .art-ep-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px; /* Note: gap doesn't work in flex on Android 4.4, handled by margins below? No, easy fix: fallback to float or just accept tight spacing, but better to use margin on items. */
-            overflow-y: auto;
-            flex: 1;
-            min-height: 0;
-            padding-right: 4px;
-            align-content: start;
-        }
-        /* Fallback for gap in flex */
-        .art-ep-item {
-            cursor: pointer;
-            padding: 8px 5px;
-            background: rgba(255,255,255,0.1);
-            color: #ddd;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 12px;
-            border: 1px solid transparent;
-            transition: all 0.2s;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            /* Flex layout fix */
-            width: calc(25% - 6px); /* 4 cols approx */
-            margin-bottom: 4px;
-            margin-right: 4px;
-        }
-        @media (max-width: 500px) {
-            .art-ep-item {
-                width: calc(33.33% - 4px); /* 3 cols on mobile */
-            }
-        }
-
-        .art-ep-item:hover {
-            background: rgba(255,255,255,0.25);
-            color: white;
-        }
-        .art-ep-item.active {
-            background: #2196F3;
-            color: white;
-            border-color: #2196F3;
-        }
-
-        /* 移动端/小屏适配 (宽度 < 500px) */
-        @media (max-width: 500px) {
-            .art-ep-layer-box {
-                width: 60% !important;
-                padding: 10px !important;
-            }
-            
-            .art-ep-item {
-                font-size: 10px;
-                padding: 3px 0;
-                border-radius: 4px;
-            }
-            .art-ep-tabs {
-                gap: 4px;
-                padding-bottom: 4px;
-            }
-            .art-ep-tab {
-                font-size: 10px;
-                padding: 2px 6px;
-            }
-        }
+        .art-ep-layer-box { display: flex !important; flex-direction: column; }
+        .art-ep-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; white-space: nowrap; scroll-behavior: smooth; }
+        .art-ep-tab { cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: rgba(255,255,255,0.1); color: #aaa; transition: all 0.2s; }
+        .art-ep-tab.active { background: #2196F3; color: white; }
+        .art-ep-list { display: flex; flex-wrap: wrap; gap: 8px; overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; align-content: start; }
+        .art-ep-item { cursor: pointer; padding: 8px 5px; background: rgba(255,255,255,0.1); color: #ddd; border-radius: 6px; text-align: center; font-size: 12px; transition: all 0.2s; width: calc(25% - 6px); margin-bottom: 4px; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
+        @media (max-width: 500px) { .art-ep-item { width: calc(33.33% - 6px); } }
+        .art-ep-item.active { background: #2196F3; color: white; }
+        @media (max-width: 500px) { .art-ep-layer-box { width: 60% !important; padding: 10px !important; } }
       `}</style>
 
       {showShareModal && (
@@ -934,7 +805,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     ))}
                 </div>
             )}
-            {/* Android 4.4 compat: Replaced grid with flex + explicit item width classes in CSS */}
             <div className="art-ep-list custom-scrollbar">
                 {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
                     <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`art-ep-item ${currentUrl === ep.url ? 'active' : ''}`}>{ep.name}</button>
