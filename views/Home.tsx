@@ -460,7 +460,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
         <section className="min-h-[60vh] animate-fadeIn space-y-8 pb-20">
             {/* ... 设置页面内容 ... */}
             {/* 顶层工具栏：数据同步与备份 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> // Android 4.4 Grid fallback handled by Tailwind/PostCSS usually, or ignored. Flex is better if grid fails.
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> 
                 {/* 1. 数据同步（源列表） */}
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">

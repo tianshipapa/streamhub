@@ -722,11 +722,51 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         .art-ep-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; white-space: nowrap; scroll-behavior: smooth; }
         .art-ep-tab { cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: rgba(255,255,255,0.1); color: #aaa; transition: all 0.2s; }
         .art-ep-tab.active { background: #2196F3; color: white; }
-        .art-ep-list { display: flex; flex-wrap: wrap; gap: 8px; overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; align-content: start; }
-        .art-ep-item { cursor: pointer; padding: 8px 5px; background: rgba(255,255,255,0.1); color: #ddd; border-radius: 6px; text-align: center; font-size: 12px; transition: all 0.2s; width: calc(25% - 6px); margin-bottom: 4px; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
-        @media (max-width: 500px) { .art-ep-item { width: calc(33.33% - 6px); } }
-        .art-ep-item.active { background: #2196F3; color: white; }
-        @media (max-width: 500px) { .art-ep-layer-box { width: 60% !important; padding: 10px !important; } }
+        .art-ep-list { display: flex; flex-wrap: wrap; gap: 0; overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; align-content: start; }
+        
+        /* 选集按钮 - 适配日间模式 */
+        .art-ep-item { 
+            cursor: pointer; 
+            padding: 8px 2px; 
+            background: #f1f5f9; /* slate-100 */
+            color: #334155; /* slate-700 */
+            border-radius: 6px; 
+            text-align: center; 
+            font-size: 12px; 
+            transition: all 0.2s; 
+            width: calc(20% - 5px); 
+            margin-bottom: 5px; 
+            margin-right: 5px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* 选集按钮 - 适配深色模式 (通过父级 .dark 类控制) */
+        .dark .art-ep-item, .art-ep-layer-box .art-ep-item {
+            background: rgba(255,255,255,0.1); 
+            color: #e2e8f0; /* slate-200 */
+            border: 1px solid transparent;
+        }
+
+        /* 选中状态 */
+        .art-ep-item.active, .dark .art-ep-item.active { 
+            background: #2563eb; 
+            color: white; 
+            border-color: #2563eb;
+        }
+
+        /* 移动端适配 - 4列布局 (避免过宽或过窄) */
+        @media (max-width: 640px) { 
+            .art-ep-item { 
+                width: calc(25% - 5px); 
+            } 
+        }
+        
+        @media (max-width: 500px) { 
+            .art-ep-layer-box { width: 60% !important; padding: 10px !important; } 
+        }
       `}</style>
 
       {showShareModal && (
