@@ -788,18 +788,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             border-color: #2196F3;
         }
 
-        /* 列表区域 - 垂直滚动 + 响应式栅格 */
+        /* 列表区域 - 垂直滚动 + 响应式栅格 - Android 4.4 compat: replaced grid with flex */
         .art-ep-list {
-            display: grid;
-            gap: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px; /* Note: gap doesn't work in flex on Android 4.4, handled by margins below? No, easy fix: fallback to float or just accept tight spacing, but better to use margin on items. */
             overflow-y: auto;
             flex: 1;
-            min-height: 0; /* 关键：允许Flex子项内部滚动 */
+            min-height: 0;
             padding-right: 4px;
             align-content: start;
-            /* 默认桌面端尺寸 */
-            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
         }
+        /* Fallback for gap in flex */
         .art-ep-item {
             cursor: pointer;
             padding: 8px 5px;
@@ -813,7 +813,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            /* Flex layout fix */
+            width: calc(25% - 6px); /* 4 cols approx */
+            margin-bottom: 4px;
+            margin-right: 4px;
         }
+        @media (max-width: 500px) {
+            .art-ep-item {
+                width: calc(33.33% - 4px); /* 3 cols on mobile */
+            }
+        }
+
         .art-ep-item:hover {
             background: rgba(255,255,255,0.25);
             color: white;
@@ -831,11 +841,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 padding: 10px !important;
             }
             
-            .art-ep-list {
-                /* 手机端允许更小的格子 */
-                grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-                gap: 4px;
-            }
             .art-ep-item {
                 font-size: 10px;
                 padding: 3px 0;
@@ -929,9 +934,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     ))}
                 </div>
             )}
-            <div className="overflow-y-auto pr-1 custom-scrollbar grid grid-cols-2 lg:grid-cols-3 gap-2 flex-1 min-h-0 content-start">
+            {/* Android 4.4 compat: Replaced grid with flex + explicit item width classes in CSS */}
+            <div className="art-ep-list custom-scrollbar">
                 {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
-                    <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`text-[11px] py-2 rounded-lg transition-all truncate border font-medium ${currentUrl === ep.url ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-50 dark:bg-slate-700/50 text-gray-500 border-gray-200 dark:border-gray-600'}`}>{ep.name}</button>
+                    <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`art-ep-item ${currentUrl === ep.url ? 'active' : ''}`}>{ep.name}</button>
                 ))}
             </div>
         </div>

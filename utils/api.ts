@@ -22,6 +22,8 @@ const PROXIES: ProxyConfig[] = [
   // 移除 corsproxy.io，因为可能导致部分地区连接困难或被墙
   { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'query' },
   { url: 'https://api.allorigins.win/raw?url=', type: 'query' },
+  // 添加一个备用
+  { url: 'https://api.allorigins.win/get?url=', type: 'query' }
 ];
 
 export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSignal): Promise<string> => {
@@ -34,25 +36,42 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
     
     try {
       const url = proxy.type === 'query' ? `${proxy.url}${encodeURIComponent(targetUrl)}` : `${proxy.url}${targetUrl}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS); 
       
-      let signal = controller.signal;
-      if (externalSignal) {
-        if ((AbortSignal as any).any) {
-          signal = (AbortSignal as any).any([controller.signal, externalSignal]);
-        } else {
-          // Fallback if AbortSignal.any is not supported
-          signal = controller.signal;
-        }
+      // Polyfill safety: Ensure AbortController exists
+      let signal;
+      let timeoutId;
+      
+      if (typeof AbortController !== 'undefined') {
+          const controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+          
+          if (externalSignal) {
+            // Safe check for AbortSignal.any support
+            if ((typeof AbortSignal !== 'undefined') && (AbortSignal as any).any) {
+              signal = (AbortSignal as any).any([controller.signal, externalSignal]);
+            } else {
+              // Fallback: use internal timeout signal, but respect external abort manually in catch
+              signal = controller.signal;
+            }
+          } else {
+             signal = controller.signal;
+          }
       }
 
       try {
         const response = await fetch(url, { signal });
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         
         if (response.ok) {
-          const text = await response.text();
+          let text = await response.text();
+          // 处理 allorigins.win/get 的 JSON 包装
+          if (proxy.url.includes('api.allorigins.win/get')) {
+             try {
+                const json = JSON.parse(text);
+                if (json.contents) text = json.contents;
+             } catch(e) {}
+          }
+
           if (text && text.trim().length > 0) {
             // 简单的 HTML 检测，防止代理返回错误页面
             if (text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html')) {
@@ -65,14 +84,13 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
         }
         throw new Error(`HTTP status ${response.status}`);
       } catch (e: any) {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         
         // 外部手动取消
         if (externalSignal?.aborted) throw e;
 
-        // 内部超时处理 (controller.abort() 默认抛出 AbortError)
+        // 内部超时处理
         if (e.name === 'AbortError') {
-             // 将 AbortError 转换为普通的 Timeout Error，避免上层误判为用户取消
              lastError = new Error(`Request timed out after ${TIMEOUT_MS}ms`);
              continue; // 继续尝试下一个代理
         } else {
@@ -89,8 +107,13 @@ export const fetchViaProxy = async (targetUrl: string, externalSignal?: AbortSig
 
 const getBaseHost = (apiUrl: string): string => {
     try {
-        const url = new URL(apiUrl);
-        return `${url.protocol}//${url.host}`;
+        if (typeof URL !== 'undefined') {
+            const url = new URL(apiUrl);
+            return `${url.protocol}//${url.host}`;
+        }
+        // Fallback for very old browsers if URL polyfill fails
+        const match = apiUrl.match(/^(https?:\/\/[^\/]+)/);
+        return match ? match[1] : "";
     } catch (e) { return ""; }
 };
 

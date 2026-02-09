@@ -208,14 +208,15 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
         </div>
       )}
 
-      {/* 列表网格 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
+      {/* 列表网格 - Android 4.4 compat: replaced grid with flex */}
+      <div className="flex flex-wrap -mx-2">
         {state.doubanMovies.map((movie) => (
-          <DoubanItem 
-            key={`douban-${movie.id}`} 
-            movie={movie} 
-            onClick={() => onSelectMovie(movie)} 
-          />
+          <div key={`douban-${movie.id}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
+             <DoubanItem 
+               movie={movie} 
+               onClick={() => onSelectMovie(movie)} 
+             />
+          </div>
         ))}
       </div>
 

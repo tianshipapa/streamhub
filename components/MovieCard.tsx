@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Movie, ViewState } from '../types';
 import { Icon } from './Icon';
@@ -62,16 +61,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
 
   return (
     <div 
-        className="group cursor-pointer flex flex-col relative" 
+        className="group cursor-pointer flex flex-col relative w-full" 
         onClick={() => !showSourceSelector && onClick(movie)}
         onMouseLeave={() => setShowSourceSelector(false)}
     >
-      {/* 封面图容器 */}
-      <div className={`relative overflow-hidden rounded-xl shadow-sm transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-800 aspect-[2/3] ring-1 ring-black/5 dark:ring-white/5 ${viewType !== 'HOME' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : 'hover:ring-blue-500'}`}>
+      {/* 封面图容器 - 使用 padding-bottom hack 替代 aspect-ratio 以兼容旧 Android */}
+      <div className={`relative overflow-hidden rounded-xl shadow-sm transition-all duration-300 ease-out bg-gray-200 dark:bg-slate-800 w-full pb-[150%] ring-1 ring-black/5 dark:ring-white/5 ${viewType !== 'HOME' ? 'hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1' : 'hover:ring-blue-500'}`}>
         <img 
           src={imgSrc || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'} 
           alt={movie.title} 
-          className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+          className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={handleImageError}

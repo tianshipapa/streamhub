@@ -337,9 +337,12 @@ const Search: React.FC<SearchProps> = ({
              </div>
          ) : (
             <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-y-10 gap-x-4 sm:gap-x-6">
+                {/* Android 4.4 compat: replaced grid with flex */}
+                <div className="flex flex-wrap -mx-2">
                     {displayMovies.map((movie, index) => (
-                        <MovieCard key={`${movie.sourceApi}-${movie.id}-${index}`} movie={movie} viewType="SEARCH" onClick={handleMovieClick} />
+                        <div key={`${movie.sourceApi}-${movie.id}-${index}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
+                            <MovieCard movie={movie} viewType="SEARCH" onClick={handleMovieClick} />
+                        </div>
                     ))}
                 </div>
                 

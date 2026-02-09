@@ -296,7 +296,16 @@ const Home: React.FC<ExtendedHomeProps> = ({
 
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        // Fallback
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
       setCopiedUrl(text);
       setTimeout(() => setCopiedUrl(null), 2000);
     } catch (err) {}
@@ -851,14 +860,15 @@ const Home: React.FC<ExtendedHomeProps> = ({
                     onSelectMovie={handleMovieClick}
                 />
             ) : mode === 'FAVORITE' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
+                // Android 4.4 compat: replaced grid with flex
+                <div className="flex flex-wrap -mx-2">
                     {favorites.map((m) => (
-                        <div key={m.id} className="relative group">
+                        <div key={m.id} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6 relative group">
                             <MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} />
                             <button onClick={(e) => handleRemoveFavorite(e, m.id)} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 z-20"><Icon name="bookmark_remove" className="text-lg" /></button>
                         </div>
                     ))}
-                    {favorites.length === 0 && <div className="col-span-full py-20 flex flex-col items-center text-gray-400 italic"><Icon name="collections_bookmark" className="text-5xl mb-4" /><p>收藏夹空空如也，快去收藏喜欢的影视吧</p></div>}
+                    {favorites.length === 0 && <div className="w-full py-20 flex flex-col items-center text-gray-400 italic"><Icon name="collections_bookmark" className="text-5xl mb-4" /><p>收藏夹空空如也，快去收藏喜欢的影视吧</p></div>}
                 </div>
             ) : savedState.loading && savedState.movies.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-4"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
@@ -870,9 +880,12 @@ const Home: React.FC<ExtendedHomeProps> = ({
                 </div>
             ) : (
                 <>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-6">
+                    {/* Android 4.4 compat: replaced grid with flex */}
+                    <div className="flex flex-wrap -mx-2">
                         {savedState.movies.map((movie, idx) => (
-                            <MovieCard key={`${movie.sourceApi}-${movie.id}-${idx}`} movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
+                            <div key={`${movie.sourceApi}-${movie.id}-${idx}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
+                                <MovieCard movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
+                            </div>
                         ))}
                     </div>
                     {savedState.movies.length > 0 && (
