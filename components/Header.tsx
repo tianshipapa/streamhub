@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ViewState } from '../types';
 import { Icon } from './Icon';
@@ -18,6 +17,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
   const [hotSearchList, setHotSearchList] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // 加载搜索历史
   useEffect(() => {
@@ -84,7 +84,13 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
     setShowSuggestions(false);
   };
 
-  const clearHistory = (e: React.MouseEvent) => {
+  const handleSuggestionKeyDown = (e: React.KeyboardEvent, item: string) => {
+    if (e.key === 'Enter') {
+        handleSuggestionClick(item);
+    }
+  };
+
+  const clearHistory = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     setSearchHistory([]);
     localStorage.removeItem('streamhub_search_history');
@@ -106,8 +112,10 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
           
           {/* Logo Section */}
           <div 
-            className="flex-shrink-0 flex items-center cursor-pointer group"
+            className="flex-shrink-0 flex items-center cursor-pointer group outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
             onClick={() => setView('HOME')}
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setView('HOME')}
           >
             <div className={`mr-1 sm:mr-2 rounded-lg flex items-center justify-center transition-all duration-300 ${currentView === 'SEARCH' ? 'w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-blue-600'}`}>
               <Icon 
@@ -153,24 +161,32 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
             </form>
 
             {/* Search Suggestions Dropdown */}
-            {/* 修复：移除 !searchValue.trim() 条件，允许在输入框有内容时（如再次点击）仍然显示热词面板 */}
             {showSuggestions && displayList.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top">
+              <div ref={suggestionsRef} className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top">
                  {searchHistory.length > 0 && (
                      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-900/50 text-[10px] text-gray-500 border-b border-gray-100 dark:border-gray-700">
                          <span>历史记录</span>
-                         <button onClick={clearHistory} className="hover:text-red-500 flex items-center gap-1"><Icon name="delete" className="text-xs" />清空</button>
+                         <button 
+                             onClick={clearHistory}
+                             onKeyDown={(e) => e.key === 'Enter' && clearHistory(e)}
+                             tabIndex={0}
+                             className="hover:text-red-500 flex items-center gap-1 outline-none focus:ring-1 focus:ring-red-500 rounded px-1"
+                         >
+                            <Icon name="delete" className="text-xs" />清空
+                         </button>
                      </div>
                  )}
-                 <div className="py-1">
+                 <div className="py-1 max-h-[60vh] overflow-y-auto">
                      {displayList.map((item, idx) => (
                          <div 
                             key={idx}
+                            tabIndex={0}
                             onClick={() => handleSuggestionClick(item)}
-                            className="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 transition-colors"
+                            onKeyDown={(e) => handleSuggestionKeyDown(e, item)}
+                            className="px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700 focus:bg-blue-100 dark:focus:bg-slate-700 outline-none cursor-pointer flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 transition-colors border-l-4 border-transparent focus:border-blue-500"
                          >
                             <Icon name={searchHistory.includes(item) ? "history" : "whatshot"} className={searchHistory.includes(item) ? "text-gray-400 text-base" : "text-red-500 text-base"} />
-                            <span>{item}</span>
+                            <span className="truncate">{item}</span>
                          </div>
                      ))}
                  </div>

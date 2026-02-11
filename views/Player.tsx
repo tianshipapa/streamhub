@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ViewState, Movie, PlayerProps, Source } from '../types';
 import { Icon } from '../components/Icon';
@@ -64,79 +63,85 @@ const fetchAndCleanM3u8 = async (url: string, depth = 0): Promise<{ content: str
     const toAbsolute = (p: string, b: string) => { try { return new URL(p, b).href; } catch(e) { return p; } };
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const originalContent = await response.text();
-    const lines = originalContent.split(/\r?\n/);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const originalContent = await response.text();
+        const lines = originalContent.split(/\r?\n/);
 
-    if (originalContent.includes('#EXT-X-STREAM-INF')) {
-        let bestUrl = null;
-        let maxBandwidth = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes('#EXT-X-STREAM-INF')) {
-                const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
-                const bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
-                let j = i + 1;
-                while (j < lines.length) {
-                    const nextLine = lines[j].trim();
-                    if (nextLine && !nextLine.startsWith('#')) {
-                        if (bandwidth > maxBandwidth) { maxBandwidth = bandwidth; bestUrl = nextLine; } 
-                        else if (!bestUrl) { bestUrl = nextLine; }
-                        break;
+        if (originalContent.includes('#EXT-X-STREAM-INF')) {
+            let bestUrl = null;
+            let maxBandwidth = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('#EXT-X-STREAM-INF')) {
+                    const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
+                    const bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
+                    let j = i + 1;
+                    while (j < lines.length) {
+                        const nextLine = lines[j].trim();
+                        if (nextLine && !nextLine.startsWith('#')) {
+                            if (bandwidth > maxBandwidth) { maxBandwidth = bandwidth; bestUrl = nextLine; } 
+                            else if (!bestUrl) { bestUrl = nextLine; }
+                            break;
+                        }
+                        j++;
                     }
-                    j++;
                 }
             }
+            if (bestUrl) return fetchAndCleanM3u8(toAbsolute(bestUrl, url), depth + 1);
         }
-        if (bestUrl) return fetchAndCleanM3u8(toAbsolute(bestUrl, url), depth + 1);
+
+        const segments: { idx: number; fp: string }[] = [];
+        const fingerprintCounts: Record<string, number> = {};
+        lines.forEach((line, idx) => {
+            const trimmed = line.trim();
+            if(!trimmed || trimmed.startsWith('#')) return;
+            const absUrl = toAbsolute(trimmed, url);
+            let u; try { u = new URL(absUrl); } catch(e) { return; }
+            const pathParts = u.pathname.split('/'); pathParts.pop(); 
+            const fp = `${u.hostname}|${pathParts.join('/')}`;
+            if(!fingerprintCounts[fp]) fingerprintCounts[fp] = 0;
+            fingerprintCounts[fp]++;
+            segments.push({ idx, fp });
+        });
+        
+        let dominantFp = '', maxC = 0;
+        for(const [fp, c] of Object.entries(fingerprintCounts)) { if(c > maxC) { maxC = c; dominantFp = fp; } }
+        // 只有当主要分片占比小于 40% 时才认为可能是混合流，否则不轻易清洗，避免误杀
+        if(segments.length === 0 || (maxC / segments.length) < 0.4) return { content: originalContent, removedCount: 0, log: '未清洗' };
+
+        const linesToRemove = new Set<number>();
+        segments.forEach(seg => {
+            if(seg.fp !== dominantFp) {
+                linesToRemove.add(seg.idx);
+                let j = seg.idx - 1;
+                while(j >= 0) {
+                    const l = lines[j].trim();
+                    if(l.startsWith('#EXTINF') || l.startsWith('#EXT-X-BYTERANGE') || l.startsWith('#EXT-X-KEY') || l.startsWith('#EXT-X-DISCONTINUITY')) { linesToRemove.add(j); j--; } 
+                    else if (!l.startsWith('#EXT') && l.startsWith('#')) j--; 
+                    else if (l === '') j--; else break;
+                }
+            }
+        });
+
+        const newLines: string[] = [];
+        lines.forEach((line, idx) => {
+            if(linesToRemove.has(idx)) return;
+            let content = line.trim();
+            if(!content) return;
+            if(content.startsWith('#')) {
+                if(content.startsWith('#EXT-X-KEY') && content.includes('URI="')) {
+                    content = content.replace(/URI="([^"]+)"/, (m, p1) => `URI="${toAbsolute(p1, url)}"`);
+                }
+                newLines.push(content);
+            } else newLines.push(toAbsolute(content, url));
+        });
+        return { content: newLines.join('\n'), removedCount: segments.length - maxC, log: `已移除 ${segments.length - maxC} 分片` };
+    } catch(e) {
+        clearTimeout(timeoutId);
+        throw e;
     }
-
-    const segments: { idx: number; fp: string }[] = [];
-    const fingerprintCounts: Record<string, number> = {};
-    lines.forEach((line, idx) => {
-        const trimmed = line.trim();
-        if(!trimmed || trimmed.startsWith('#')) return;
-        const absUrl = toAbsolute(trimmed, url);
-        let u; try { u = new URL(absUrl); } catch(e) { return; }
-        const pathParts = u.pathname.split('/'); pathParts.pop(); 
-        const fp = `${u.hostname}|${pathParts.join('/')}`;
-        if(!fingerprintCounts[fp]) fingerprintCounts[fp] = 0;
-        fingerprintCounts[fp]++;
-        segments.push({ idx, fp });
-    });
-    
-    let dominantFp = '', maxC = 0;
-    for(const [fp, c] of Object.entries(fingerprintCounts)) { if(c > maxC) { maxC = c; dominantFp = fp; } }
-    if(segments.length === 0 || (maxC / segments.length) < 0.4) return { content: originalContent, removedCount: 0, log: '未清洗' };
-
-    const linesToRemove = new Set<number>();
-    segments.forEach(seg => {
-        if(seg.fp !== dominantFp) {
-            linesToRemove.add(seg.idx);
-            let j = seg.idx - 1;
-            while(j >= 0) {
-                const l = lines[j].trim();
-                if(l.startsWith('#EXTINF') || l.startsWith('#EXT-X-BYTERANGE') || l.startsWith('#EXT-X-KEY') || l.startsWith('#EXT-X-DISCONTINUITY')) { linesToRemove.add(j); j--; } 
-                else if (!l.startsWith('#EXT') && l.startsWith('#')) j--; 
-                else if (l === '') j--; else break;
-            }
-        }
-    });
-
-    const newLines: string[] = [];
-    lines.forEach((line, idx) => {
-        if(linesToRemove.has(idx)) return;
-        let content = line.trim();
-        if(!content) return;
-        if(content.startsWith('#')) {
-            if(content.startsWith('#EXT-X-KEY') && content.includes('URI="')) {
-                content = content.replace(/URI="([^"]+)"/, (m, p1) => `URI="${toAbsolute(p1, url)}"`);
-            }
-            newLines.push(content);
-        } else newLines.push(toAbsolute(content, url));
-    });
-    return { content: newLines.join('\n'), removedCount: segments.length - maxC, log: `已移除 ${segments.length - maxC} 分片` };
 };
 
 const getButtonHtml = (label: string, time: number, isActive: boolean, color: string) => {
@@ -179,11 +184,11 @@ const generateEpisodeLayerHtml = (list: {name: string, url: string}[], current: 
     `;
 };
 
-interface AltSource {
+interface AltSourceStatus {
     source: Source;
-    latency: number | null;
-    movie: Movie | null;
-    searching: boolean;
+    status: 'idle' | 'searching' | 'success' | 'empty' | 'error';
+    latency?: number;
+    movie?: Movie;
 }
 
 const ControlButton: React.FC<{ icon: string; text: string; onClick: () => void; active?: boolean }> = ({ icon, text, onClick, active }) => (
@@ -193,7 +198,7 @@ const ControlButton: React.FC<{ icon: string; text: string; onClick: () => void;
         tabIndex={0}
     >
         <Icon name={icon} className="text-base" />
-        <span>{text}</span>
+        <span className="whitespace-nowrap">{text}</span>
     </button>
 );
 
@@ -207,12 +212,23 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [isFavorited, setIsFavorited] = useState(false);
   const accConfig = useMemo(() => getAccelerationConfig(), []);
   const [isTempAccelerationEnabled, setIsTempAccelerationEnabled] = useState(false);
+  
+  // 选集分组状态
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  
+  // 分享状态
   const [showShareModal, setShowShareModal] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [altSources, setAltSources] = useState<AltSource[]>([]);
-  
-  // 新增：去广告开关，默认开启
+
+  // 切源状态
+  const [showSourceSelector, setShowSourceSelector] = useState(false);
+  const [altSources, setAltSources] = useState<AltSourceStatus[]>([]);
+  const [hasStartedSearch, setHasStartedSearch] = useState(false);
+
+  // 描述展开状态
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
+
+  // 去广告开关，默认开启
   const [enableAdBlock, setEnableAdBlock] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -237,6 +253,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     currentUrlRef.current = currentUrl;
   }, [currentUrl]);
 
+  // 更新播放器内部选集层
   useEffect(() => {
     const updateLayer = () => {
          const html = generateEpisodeLayerHtml(playList, currentUrl, currentSectionIndex);
@@ -250,6 +267,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     updateLayer();
   }, [playList, currentUrl, currentSectionIndex]);
 
+  // 计算选集分组
   const episodeSections = useMemo(() => {
     if (playList.length <= EPISODES_PER_SECTION) return [];
     const sections = [];
@@ -263,10 +281,14 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   const effectiveAccEnabled = useMemo(() => accConfig.enabled || isTempAccelerationEnabled, [accConfig.enabled, isTempAccelerationEnabled]);
 
+  // 自动跳转到当前集所在分组
   useEffect(() => {
     if (playList.length > EPISODES_PER_SECTION && currentUrl) {
         const idx = playList.findIndex(ep => ep.url === currentUrl);
-        if (idx !== -1) setCurrentSectionIndex(Math.floor(idx / EPISODES_PER_SECTION));
+        if (idx !== -1) {
+            const section = Math.floor(idx / EPISODES_PER_SECTION);
+            setCurrentSectionIndex(section);
+        }
     }
   }, [currentUrl, playList]);
 
@@ -284,6 +306,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       hasAppliedHistorySeek.current = false; 
       setIsFavorited(isFavorite(movieId));
       skipConfigRef.current = getSkipConfig(movieId);
+      setAltSources([]); // 重置切源列表
+      setHasStartedSearch(false);
 
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem?.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
@@ -304,42 +328,82 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         } else if (parsedEpisodes.length > 0) {
             setCurrentUrl(parsedEpisodes[0].url);
         }
-        detectAltSources(data.title);
       }
       setLoading(false);
     };
     if (movieId) loadDetails();
   }, [movieId, currentSource.api]);
 
-  const detectAltSources = async (title: string) => {
-    const others = sources.filter(s => s.api !== currentSource.api);
-    setAltSources(others.map(s => ({ source: s, latency: null, movie: null, searching: true })));
-    others.forEach(async (source) => {
-        const startTime = Date.now();
+  // 初始化切源列表（仅静态展示，不触发请求）
+  const initAltSources = () => {
+      const others = sources.filter(s => s.api !== currentSource.api);
+      setAltSources(others.map(s => ({ source: s, status: 'idle' })));
+      setShowSourceSelector(true);
+  };
+
+  // 触发切源搜索
+  const startAltSearch = () => {
+      if (!details) return;
+      setHasStartedSearch(true);
+      
+      const others = sources.filter(s => s.api !== currentSource.api);
+      
+      // 更新为搜索状态
+      setAltSources(others.map(s => ({ source: s, status: 'searching' })));
+
+      // 并发请求
+      others.forEach(async (source) => {
+        const start = Date.now();
         try {
-            const results = await searchVideos(source.api, title);
-            const latency = Date.now() - startTime;
-            const matchedMovie = results.find(m => m.title === title) || results.find(m => m.title.includes(title)) || null;
-            setAltSources(prev => prev.map(item => item.source.api === source.api ? { ...item, latency, movie: matchedMovie, searching: false } : item));
+            const res = await searchVideos(source.api, details.title);
+            const latency = Date.now() - start;
+            // 简单匹配逻辑
+            const match = res.find(m => m.title === details.title) || res.find(m => m.title.includes(details.title));
+            
+            setAltSources(prev => prev.map(item => {
+                if (item.source.api === source.api) {
+                    return {
+                        ...item,
+                        status: match ? 'success' : 'empty',
+                        latency,
+                        movie: match ? { ...match, sourceApi: source.api, sourceName: source.name } : undefined
+                    };
+                }
+                return item;
+            }));
         } catch (e) {
-            setAltSources(prev => prev.map(item => item.source.api === source.api ? { ...item, searching: false, movie: null, latency: 9999 } : item));
+             setAltSources(prev => prev.map(item => {
+                if (item.source.api === source.api) {
+                    return { ...item, status: 'error', latency: Date.now() - start };
+                }
+                return item;
+            }));
         }
     });
   };
 
   const sortedAltSources = useMemo(() => {
-    return altSources.filter(alt => alt.movie || alt.searching).sort((a, b) => {
-        if (a.searching && !b.searching) return 1;
-        if (!a.searching && b.searching) return -1;
-        return (a.latency || 0) - (b.latency || 0);
+    return [...altSources].sort((a, b) => {
+        // 成功的排前面
+        if (a.status === 'success' && b.status !== 'success') return -1;
+        if (a.status !== 'success' && b.status === 'success') return 1;
+        // 然后是搜索中
+        if (a.status === 'searching' && b.status !== 'searching') return -1;
+        if (a.status !== 'searching' && b.status === 'searching') return 1;
+        // 成功的按延迟排序
+        if (a.status === 'success' && b.status === 'success') {
+            return (a.latency || 0) - (b.latency || 0);
+        }
+        return 0;
     });
   }, [altSources]);
 
-  const handleAltSourceClick = (alt: AltSource) => {
+  const handleAltSourceClick = (alt: AltSourceStatus) => {
     if (alt.movie) {
         const movieWithSource = { ...alt.movie, sourceApi: alt.source.api, sourceName: alt.source.name };
         addToHistory(movieWithSource);
         onSelectMovie(movieWithSource);
+        setShowSourceSelector(false);
     }
   };
 
@@ -357,7 +421,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       safeShowNotice(!isTempAccelerationEnabled ? '已临时开启加速播放' : '已关闭临时加速');
   };
 
-  const copyToClipboard = async (text: string) => {
+  const handleShare = () => {
+      setShowShareModal(true);
+      setIsCopied(false);
+  };
+
+  const getShareText = () => {
+      if (!details) return currentUrl;
+      return `正在观看《${details.title}》\n播放链接：${currentUrl}\n(分享自 StreamHub Vision)`;
+  };
+
+  const copyShareText = async () => {
+    const text = getShareText();
     try {
       if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
       else {
@@ -372,7 +447,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       }
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      safeShowNotice('播放链接已复制');
+      safeShowNotice('分享内容已复制');
     } catch (err) {}
   };
 
@@ -387,7 +462,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             historyTimeRef.current = 0; 
             hasAppliedHistorySeek.current = true; 
             setCurrentUrl(nextEp.url); 
-        }, 1500);
+        }, 500);
     } else {
         safeShowNotice('已是最后一集');
     }
@@ -407,6 +482,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }, 500);
     } else {
         safeShowNotice('已是第一集');
+    }
+  };
+
+  const handleForward15 = () => {
+    if (artRef.current) {
+        artRef.current.currentTime = Math.min(artRef.current.currentTime + 15, artRef.current.duration);
+        safeShowNotice('快进 15s');
+    }
+  };
+
+  const handleBackward15 = () => {
+    if (artRef.current) {
+        artRef.current.currentTime = Math.max(artRef.current.currentTime - 15, 0);
+        safeShowNotice('快退 15s');
     }
   };
 
@@ -480,6 +569,31 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     if (isFullscreenRef.current) art.fullscreen = true;
   };
 
+  // 遥控器/键盘全局监听
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+        if (!artRef.current) return;
+        // 避免在输入框或按钮聚焦时触发
+        const tagName = document.activeElement?.tagName?.toLowerCase();
+        if (tagName === 'input' || tagName === 'textarea' || tagName === 'button') return;
+
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            artRef.current.currentTime = Math.min(artRef.current.currentTime + 10, artRef.current.duration);
+            safeShowNotice(`快进: ${Math.floor(artRef.current.currentTime)}s`);
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            artRef.current.currentTime = Math.max(artRef.current.currentTime - 10, 0);
+            safeShowNotice(`快退: ${Math.floor(artRef.current.currentTime)}s`);
+        } else if (e.key === ' ') {
+            e.preventDefault();
+            artRef.current.toggle();
+        }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   useEffect(() => {
     return () => {
         if (artRef.current) {
@@ -489,6 +603,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     };
   }, [movieId]);
 
+  // 播放器核心加载逻辑
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
     let cleanTimeoutId: any = null;
@@ -846,34 +961,44 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }
       `}</style>
 
+      {/* 分享弹窗 */}
       {showShareModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           <div className="absolute top-0 right-0 bottom-0 left-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)}></div>
-          <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center space-x-2"><Icon name="share" className="text-blue-500" />分享播放链接</h3>
-            <div className="bg-gray-100 dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 break-all text-xs font-mono select-all">{currentUrl}</div>
-            <button onClick={() => copyToClipboard(currentUrl)} className={`w-full mt-6 flex items-center justify-center space-x-2 py-3.5 rounded-xl font-bold transition-all ${isCopied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>
-                <Icon name={isCopied ? "check_circle" : "content_copy"} /><span>{isCopied ? '已复制' : '复制链接'}</span>
+          <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700 animate-fadeIn">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center space-x-2"><Icon name="share" className="text-blue-500" /><span>分享内容</span></h3>
+            <textarea 
+                readOnly 
+                className="w-full h-32 bg-gray-100 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-xs font-mono mb-4 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                value={getShareText()}
+            />
+            <button onClick={copyShareText} className={`w-full flex items-center justify-center space-x-2 py-3 rounded-xl font-bold transition-all ${isCopied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                <Icon name={isCopied ? "check_circle" : "content_copy"} /><span>{isCopied ? '已复制到剪贴板' : '一键复制'}</span>
             </button>
           </div>
         </div>
       )}
 
+      {/* 视频容器 */}
       <section className="relative w-full rounded-2xl overflow-hidden shadow-2xl bg-black" style={{ paddingBottom: `${playerRatio}%` }}>
          <div ref={containerRef} className="absolute top-0 right-0 bottom-0 left-0 w-full h-full"></div>
          {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
       </section>
 
-      {/* 新增：播放控制栏 (方向键友好) */}
+      {/* 播放控制栏 */}
       <section className="bg-gray-50 dark:bg-slate-800 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-x-auto hide-scrollbar">
           <div className="flex items-center space-x-3 min-w-max">
             <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} />
             <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} />
             <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            <ControlButton icon="cleaning_services" text={enableAdBlock ? "去广告:开" : "去广告:关"} onClick={toggleAdBlock} active={enableAdBlock} />
+            <ControlButton icon="fast_rewind" text="快退 15s" onClick={handleBackward15} />
+            <ControlButton icon="fast_forward" text="快进 15s" onClick={handleForward15} />
+            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            <ControlButton icon="cleaning_services" text={enableAdBlock ? "广告:关" : "广告:开"} onClick={toggleAdBlock} active={enableAdBlock} />
             <ControlButton icon="start" text="片头" onClick={handleSetIntro} />
             <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} />
             <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            <ControlButton icon="wifi_tethering" text="切源" onClick={initAltSources} />
             <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} />
             <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} />
           </div>
@@ -881,6 +1006,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
+             {/* 标题区域 */}
              <div className="flex flex-col sm:flex-row sm:items-end justify-between space-y-4 sm:space-y-0">
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{details.title}</h1>
@@ -891,7 +1017,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     </div>
                 </div>
                 <div className="flex space-x-2">
-                    <button onClick={() => setShowShareModal(true)} className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium"><Icon name="share" className="text-lg" /><span>分享</span></button>
+                    <button onClick={handleShare} className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium"><Icon name="share" className="text-lg" /><span>分享</span></button>
                     <button onClick={handleFavoriteToggle} className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}>
                         <Icon name={isFavorited ? "bookmark" : "bookmark_border"} className="text-lg" />
                         <span>{isFavorited ? '已收藏' : '收藏'}</span>
@@ -899,27 +1025,24 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 </div>
              </div>
              
+             {/* 简介卡片 */}
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
                 <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center space-x-2"><Icon name="description" className="text-blue-500 text-lg" /> <span>剧情简介</span></h3>
-                <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400 line-clamp-6">{details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}</p>
-             </div>
-
-             <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white mb-4 flex items-center space-x-2"><Icon name="swap_horiz" className="text-blue-500 text-lg" /> <span>全网切源检测</span></h3>
-                <div className="max-h-72 overflow-y-auto pr-1 custom-scrollbar space-y-2.5">
-                    {sortedAltSources.map((alt, idx) => (
-                        <button key={idx} onClick={() => handleAltSourceClick(alt)} disabled={alt.searching} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all ${alt.source.api === currentSource.api ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400'}`}>
-                            <div className="flex items-center space-x-3 text-left">
-                                <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-500"><Icon name="dns" className="text-lg" /></div>
-                                <div><div className="text-sm font-bold dark:text-white">{alt.source.name}</div><div className="text-[10px] text-gray-400">{alt.searching ? '检索中...' : (alt.movie ? `匹配成功` : '无结果')}</div></div>
-                            </div>
-                            {alt.latency && <div className="text-[10px] font-mono font-bold text-gray-400">{alt.latency}ms</div>}
-                        </button>
-                    ))}
+                <div 
+                    onClick={() => setIsDescExpanded(!isDescExpanded)}
+                    className={`text-xs leading-relaxed text-gray-500 dark:text-gray-400 cursor-pointer transition-all ${isDescExpanded ? '' : 'line-clamp-3'}`}
+                >
+                    {details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}
+                </div>
+                <div className="text-center mt-2">
+                    <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="text-blue-500 text-[10px] hover:underline flex items-center justify-center w-full">
+                        <Icon name={isDescExpanded ? "expand_less" : "expand_more"} />
+                    </button>
                 </div>
              </div>
         </div>
 
+        {/* 右侧选集列表 */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
@@ -945,6 +1068,55 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             </div>
         </div>
       </section>
+
+      {/* 切源模态框 (懒加载) */}
+      {showSourceSelector && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowSourceSelector(false)}>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                      <h3 className="font-bold text-lg dark:text-white">全网切源 - {details?.title}</h3>
+                      <button onClick={() => setShowSourceSelector(false)}><Icon name="close" /></button>
+                  </div>
+                  <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+                      {!hasStartedSearch ? (
+                          <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                              <Icon name="search" className="text-4xl text-gray-300" />
+                              <p className="text-sm text-gray-500 text-center px-8">点击下方按钮开始在所有可用线路中搜索该影片。</p>
+                              <button onClick={startAltSearch} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition-all">
+                                  开始全网搜索
+                              </button>
+                          </div>
+                      ) : (
+                          <div className="space-y-2">
+                             {sortedAltSources.map((alt, idx) => (
+                                <button key={idx} onClick={() => handleAltSourceClick(alt)} disabled={alt.status === 'searching'} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left ${alt.source.api === currentSource.api ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400'}`}>
+                                    <div className="flex items-center space-x-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs ${alt.status === 'success' ? 'bg-green-500' : alt.status === 'searching' ? 'bg-blue-400' : 'bg-gray-300 dark:bg-slate-700'}`}>
+                                            {alt.status === 'searching' ? <Icon name="sync" className="animate-spin text-lg" /> : alt.status === 'success' ? 'OK' : '无'}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold dark:text-white">{alt.source.name}</div>
+                                            <div className="text-[10px] text-gray-400">
+                                                {alt.status === 'searching' && '检索中...'}
+                                                {alt.status === 'success' && alt.movie && (alt.movie.badge || '匹配成功')}
+                                                {alt.status === 'empty' && '未找到资源'}
+                                                {alt.status === 'error' && '连接超时'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {alt.latency && (
+                                        <div className={`text-[10px] font-mono font-bold ${alt.latency < 500 ? 'text-green-500' : alt.latency < 2000 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                            {alt.latency}ms
+                                        </div>
+                                    )}
+                                </button>
+                             ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
     </main>
   );
 };
