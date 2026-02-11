@@ -186,6 +186,17 @@ interface AltSource {
     searching: boolean;
 }
 
+const ControlButton: React.FC<{ icon: string; text: string; onClick: () => void; active?: boolean }> = ({ icon, text, onClick, active }) => (
+    <button 
+        onClick={onClick}
+        className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'}`}
+        tabIndex={0}
+    >
+        <Icon name={icon} className="text-base" />
+        <span>{text}</span>
+    </button>
+);
+
 const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, sources, onSelectMovie }) => {
   const [details, setDetails] = useState<Movie | null>(null);
   const [playList, setPlayList] = useState<{name: string, url: string}[]>([]);
@@ -200,6 +211,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [showShareModal, setShowShareModal] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [altSources, setAltSources] = useState<AltSource[]>([]);
+  
+  // 新增：去广告开关，默认开启
+  const [enableAdBlock, setEnableAdBlock] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -362,7 +376,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     } catch (err) {}
   };
 
-  const playNextEpisode = () => {
+  const handleNextEpisode = () => {
     const list = playListRef.current;
     const current = currentUrlRef.current;
     const currentIndex = list.findIndex(ep => ep.url === current);
@@ -374,7 +388,80 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             hasAppliedHistorySeek.current = true; 
             setCurrentUrl(nextEp.url); 
         }, 1500);
+    } else {
+        safeShowNotice('已是最后一集');
     }
+  };
+
+  const handlePrevEpisode = () => {
+    const list = playListRef.current;
+    const current = currentUrlRef.current;
+    const currentIndex = list.findIndex(ep => ep.url === current);
+    if (currentIndex > 0) {
+        const prevEp = list[currentIndex - 1];
+        safeShowNotice(`即将播放: ${prevEp.name}`);
+        setTimeout(() => { 
+            historyTimeRef.current = 0; 
+            hasAppliedHistorySeek.current = true; 
+            setCurrentUrl(prevEp.url); 
+        }, 500);
+    } else {
+        safeShowNotice('已是第一集');
+    }
+  };
+
+  const toggleAdBlock = () => {
+      const newState = !enableAdBlock;
+      setEnableAdBlock(newState);
+      safeShowNotice(newState ? '已开启去广告 (尝试重载)' : '已关闭去广告 (加载原画)');
+  };
+
+  const handleSetIntro = () => {
+      if(!artRef.current) return;
+      const time = artRef.current.currentTime;
+      const currentIntro = skipConfigRef.current.intro;
+      const newIntro = currentIntro > 0 ? 0 : time;
+      const config = { ...skipConfigRef.current, intro: newIntro };
+      skipConfigRef.current = config;
+      setSkipConfig(movieId, config);
+      artRef.current.controls.update({
+          name: 'skip-intro',
+          html: getButtonHtml('片头', newIntro, newIntro > 0, '33, 150, 243')
+      });
+      safeShowNotice(newIntro > 0 ? `片头跳过点: ${Math.floor(newIntro)}s` : `已取消片头跳过`);
+  };
+
+  const handleSetOutro = () => {
+      if(!artRef.current) return;
+      const time = artRef.current.currentTime;
+      const duration = artRef.current.duration || 0;
+      if (duration <= 0) return;
+      const offset = duration - time;
+      const currentOutro = skipConfigRef.current.outroOffset;
+      const newOutro = currentOutro > 0 ? 0 : offset;
+      const config = { ...skipConfigRef.current, outroOffset: newOutro };
+      skipConfigRef.current = config;
+      setSkipConfig(movieId, config);
+      artRef.current.controls.update({
+          name: 'skip-outro',
+          html: getButtonHtml('片尾', newOutro, newOutro > 0, '255, 152, 0')
+      });
+      safeShowNotice(newOutro > 0 ? `片尾跳过点已设为距结尾: ${Math.floor(newOutro)}s` : `已取消片尾跳过`);
+  };
+
+  const handleCycleSpeed = () => {
+      if(!artRef.current) return;
+      const rates = [1.0, 1.25, 1.5, 2.0];
+      const current = artRef.current.playbackRate;
+      const nextIdx = rates.findIndex(r => r > current);
+      const next = nextIdx === -1 ? rates[0] : rates[nextIdx];
+      artRef.current.playbackRate = next;
+      safeShowNotice(`倍速: ${next}x`);
+  };
+
+  const handleToggleFullscreen = () => {
+      if(!artRef.current) return;
+      artRef.current.fullscreen = !artRef.current.fullscreen;
   };
 
   const handleVideoReady = (art: any) => {
@@ -417,7 +504,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             finalUrl = `${prefix}/${currentUrl}`;
         }
 
-        if (currentUrl.includes('.m3u8')) {
+        // 仅在 enableAdBlock 为真时执行去广告逻辑
+        if (enableAdBlock && currentUrl.includes('.m3u8')) {
             try {
                 setCleanStatus('流处理中...');
                 const result = await fetchAndCleanM3u8(finalUrl);
@@ -476,13 +564,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     pip: false,
                     airplay: false,
                     icons: {
-                        // 使用科技感缓冲图标
-                        loading: `<div class="art-buffering-animation">
-                                    <div class="ring-glow"></div>
-                                    <div class="ring-outer"></div>
-                                    <div class="ring-inner"></div>
-                                    <div class="icon-center"><i class="material-icons-round" style="font-size: 26px; color: #3b82f6;">smart_display</i></div>
-                                  </div>`,
+                        loading: `<div class="art-buffering-animation"><div class="ring-glow"></div><div class="ring-outer"></div><div class="ring-inner"></div><div class="icon-center"><i class="material-icons-round" style="font-size: 26px; color: #3b82f6;">smart_display</i></div></div>`,
                     },
                     customType: {
                         m3u8: function (video: HTMLVideoElement, url: string, artInstance: any) {
@@ -631,7 +713,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         }
                     }
                 });
-                art.on('video:ended', () => playNextEpisode());
+                art.on('video:ended', () => handleNextEpisode());
             }
         } catch (e) { 
             console.error(e);
@@ -643,7 +725,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         isMounted = false;
         if (cleanTimeoutId) clearTimeout(cleanTimeoutId);
     };
-  }, [currentUrl, movieId, effectiveAccEnabled]);
+  }, [currentUrl, movieId, effectiveAccEnabled, enableAdBlock]);
 
   if (loading) {
       return (
@@ -668,7 +750,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         
         .art-control-volume { display: none !important; }
 
-        /* Artplayer 缓冲图标美化 */
         .art-loading-custom, .art-buffering-animation {
             position: relative;
             width: 80px;
@@ -679,7 +760,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }
         .ring-glow {
             position: absolute;
-            inset: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(59, 130, 246, 0.2);
             border-radius: 50%;
             filter: blur(12px);
@@ -687,7 +768,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }
         .ring-outer {
             position: absolute;
-            inset: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             border: 2px solid transparent;
             border-top-color: rgba(59, 130, 246, 0.3);
             border-bottom-color: rgba(59, 130, 246, 0.3);
@@ -696,7 +777,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }
         .ring-inner {
             position: absolute;
-            inset: 8px;
+            top: 8px; left: 8px; right: 8px; bottom: 8px;
             border: 2px solid transparent;
             border-left-color: #3b82f6;
             border-radius: 50%;
@@ -719,17 +800,16 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         @keyframes ring-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
         
         .art-ep-layer-box { display: flex !important; flex-direction: column; }
-        .art-ep-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; white-space: nowrap; scroll-behavior: smooth; }
-        .art-ep-tab { cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: rgba(255,255,255,0.1); color: #aaa; transition: all 0.2s; }
+        .art-ep-tabs { display: flex; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; white-space: nowrap; scroll-behavior: smooth; }
+        .art-ep-tab { cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: rgba(255,255,255,0.1); color: #aaa; transition: all 0.2s; margin-right: 6px; }
         .art-ep-tab.active { background: #2196F3; color: white; }
-        .art-ep-list { display: flex; flex-wrap: wrap; gap: 0; overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; align-content: start; }
+        .art-ep-list { display: flex; flex-wrap: wrap; overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; align-content: start; }
         
-        /* 选集按钮 - 适配日间模式 */
         .art-ep-item { 
             cursor: pointer; 
             padding: 8px 2px; 
-            background: #f1f5f9; /* slate-100 */
-            color: #334155; /* slate-700 */
+            background: #f1f5f9; 
+            color: #334155; 
             border-radius: 6px; 
             text-align: center; 
             font-size: 12px; 
@@ -743,21 +823,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             border: 1px solid #e2e8f0;
         }
         
-        /* 选集按钮 - 适配深色模式 (通过父级 .dark 类控制) */
         .dark .art-ep-item, .art-ep-layer-box .art-ep-item {
             background: rgba(255,255,255,0.1); 
-            color: #e2e8f0; /* slate-200 */
+            color: #e2e8f0; 
             border: 1px solid transparent;
         }
 
-        /* 选中状态 */
         .art-ep-item.active, .dark .art-ep-item.active { 
             background: #2563eb; 
             color: white; 
             border-color: #2563eb;
         }
 
-        /* 移动端适配 - 4列布局 (避免过宽或过窄) */
         @media (max-width: 640px) { 
             .art-ep-item { 
                 width: calc(25% - 5px); 
@@ -771,7 +848,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
       {showShareModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)}></div>
+          <div className="absolute top-0 right-0 bottom-0 left-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)}></div>
           <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center space-x-2"><Icon name="share" className="text-blue-500" />分享播放链接</h3>
             <div className="bg-gray-100 dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 break-all text-xs font-mono select-all">{currentUrl}</div>
@@ -783,8 +860,23 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       )}
 
       <section className="relative w-full rounded-2xl overflow-hidden shadow-2xl bg-black" style={{ paddingBottom: `${playerRatio}%` }}>
-         <div ref={containerRef} className="absolute inset-0 w-full h-full"></div>
+         <div ref={containerRef} className="absolute top-0 right-0 bottom-0 left-0 w-full h-full"></div>
          {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
+      </section>
+
+      {/* 新增：播放控制栏 (方向键友好) */}
+      <section className="bg-gray-50 dark:bg-slate-800 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-x-auto hide-scrollbar">
+          <div className="flex items-center space-x-3 min-w-max">
+            <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} />
+            <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} />
+            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            <ControlButton icon="cleaning_services" text={enableAdBlock ? "去广告:开" : "去广告:关"} onClick={toggleAdBlock} active={enableAdBlock} />
+            <ControlButton icon="start" text="片头" onClick={handleSetIntro} />
+            <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} />
+            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} />
+            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} />
+          </div>
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
