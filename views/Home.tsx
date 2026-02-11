@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
 import { Movie, HomeProps, Source } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -66,6 +65,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
   const [mode, setMode] = useState<'SOURCE' | 'DOUBAN' | 'FAVORITE' | 'SETTINGS'>(savedState.isDoubanMode ? 'DOUBAN' : 'SOURCE');
   
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false);
+  const sourceMenuRef = useRef<HTMLDivElement>(null);
+
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClearFav, setConfirmClearFav] = useState(false);
   
@@ -122,6 +123,14 @@ const Home: React.FC<ExtendedHomeProps> = ({
         window.scrollTo(0, 0);
     }
   }, [savedState.loading, mode]);
+
+  // 当源列表打开时，自动聚焦到第一个选项
+  useEffect(() => {
+    if (isSourceMenuOpen && sourceMenuRef.current) {
+        const firstBtn = sourceMenuRef.current.querySelector('button');
+        if (firstBtn) firstBtn.focus();
+    }
+  }, [isSourceMenuOpen]);
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
     // 源站加载逻辑：只操作 loading/error
@@ -432,22 +441,26 @@ const Home: React.FC<ExtendedHomeProps> = ({
 
              {mode === 'SOURCE' && (
                 <div className="relative w-full sm:w-auto">
-                   <button onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)} className="w-full flex items-center justify-between space-x-3 bg-gray-50 dark:bg-slate-900 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all cursor-pointer">
+                   <button onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)} className="w-full flex items-center justify-between space-x-3 bg-gray-50 dark:bg-slate-900 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500">
                       <div className="flex items-center space-x-2"><Icon name="settings_input_component" className="text-blue-500" /><span className="truncate max-w-[120px]">{currentSource.name}</span></div>
                       <Icon name="expand_more" className={`transition-transform ${isSourceMenuOpen ? 'rotate-180' : ''}`} />
                    </button>
                    {isSourceMenuOpen && (
-                      <><div className="fixed inset-0 z-10" onClick={() => setIsSourceMenuOpen(false)}></div><div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                      <><div className="fixed inset-0 z-10" onClick={() => setIsSourceMenuOpen(false)}></div><div ref={sourceMenuRef} className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
                         <div className="max-h-96 overflow-y-auto custom-scrollbar">
                             <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase bg-gray-50 dark:bg-slate-900/50">可用线路</div>
                             {sources.map((s, idx) => (
-                                <button key={idx} onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center justify-between ${currentSource.api === s.api ? 'text-blue-600 bg-blue-50' : 'text-gray-700 dark:text-gray-200'}`}>
+                                <button 
+                                    key={idx} 
+                                    onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }} 
+                                    className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 focus:bg-blue-50 dark:focus:bg-slate-600 outline-none flex items-center justify-between ${currentSource.api === s.api ? 'text-blue-600 bg-blue-50 font-bold' : 'text-gray-700 dark:text-gray-200'}`}
+                                >
                                     <span className="truncate flex-1 mr-2">{s.name}</span>
                                     {currentSource.api === s.api && <Icon name="check" className="text-xs" />}
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => { setMode('SETTINGS'); setIsSourceMenuOpen(false); }} className="w-full py-3 text-[10px] font-bold text-gray-400 hover:bg-gray-50 border-t border-gray-100 flex items-center justify-center space-x-2 uppercase tracking-wider">管理源站列表</button>
+                        <button onClick={() => { setMode('SETTINGS'); setIsSourceMenuOpen(false); }} className="w-full py-3 text-[10px] font-bold text-gray-400 hover:bg-gray-50 border-t border-gray-100 flex items-center justify-center space-x-2 uppercase tracking-wider outline-none focus:bg-gray-100">管理源站列表</button>
                       </div></>
                    )}
                 </div>
