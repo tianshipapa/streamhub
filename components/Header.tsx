@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ViewState } from '../types';
 import { Icon } from './Icon';
@@ -18,6 +17,9 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  
+  // 延时关闭的引用
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 加载搜索历史
   useEffect(() => {
@@ -96,6 +98,20 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
     localStorage.removeItem('streamhub_search_history');
   };
 
+  // 延时关闭逻辑
+  const handleContainerLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setShowSuggestions(false);
+    }, 300); // 300ms 延迟，防止鼠标不小心滑出时立刻消失
+  };
+
+  const handleContainerEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
   // 计算显示的列表：历史记录 + 热搜 (去重)
   // 不进行输入联想/自动补齐，仅作为推荐列表
   const displayList = useMemo(() => {
@@ -134,7 +150,8 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
           <div 
             className="flex-1 max-w-2xl mx-auto px-1 sm:px-0 relative" 
             ref={searchContainerRef}
-            onMouseLeave={() => setShowSuggestions(false)} // 鼠标移开后热词消失
+            onMouseLeave={handleContainerLeave}
+            onMouseEnter={handleContainerEnter}
           >
             <form onSubmit={handleSearchSubmit} className="relative group">
               <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
@@ -146,8 +163,8 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
                 placeholder="搜索电影、剧集、动漫..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                onFocus={() => setShowSuggestions(true)}
-                onClick={() => setShowSuggestions(true)} // 点击搜索框显示热词
+                onFocus={() => { handleContainerEnter(); setShowSuggestions(true); }}
+                onClick={() => { handleContainerEnter(); setShowSuggestions(true); }}
               />
               {searchValue && (
                 <button 

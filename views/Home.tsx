@@ -62,10 +62,13 @@ const Home: React.FC<ExtendedHomeProps> = ({
 }) => {
   const [history, setHistory] = useState<Movie[]>([]);
   const [favorites, setFavorites] = useState<Movie[]>([]);
-  const [mode, setMode] = useState<'SOURCE' | 'DOUBAN' | 'FAVORITE' | 'SETTINGS'>(savedState.isDoubanMode ? 'DOUBAN' : 'SOURCE');
+  const [mode, setMode] = useState<'SOURCE' | 'DOUBAN' | 'LIBRARY' | 'SETTINGS'>(savedState.isDoubanMode ? 'DOUBAN' : 'SOURCE');
   
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false);
   const sourceMenuRef = useRef<HTMLDivElement>(null);
+  
+  // 延时关闭定时器
+  const closeMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClearFav, setConfirmClearFav] = useState(false);
@@ -110,16 +113,18 @@ const Home: React.FC<ExtendedHomeProps> = ({
         });
         loadData(currentSource.api, '', 1);
       }
-    } else if (mode === 'FAVORITE') {
+    } else if (mode === 'LIBRARY') {
       setFavorites(getFavorites());
     }
     setHistory(getHistory());
   }, [currentSource.api, mode]);
 
   useLayoutEffect(() => {
-    if (mode === 'SOURCE' && !savedState.loading && savedState.scrollY > 0) {
-        window.scrollTo(0, savedState.scrollY);
-    } else if (mode !== 'FAVORITE' && mode !== 'SETTINGS') {
+    if (mode === 'SOURCE') {
+        if (!savedState.loading && savedState.scrollY > 0) {
+            window.scrollTo(0, savedState.scrollY);
+        }
+    } else {
         window.scrollTo(0, 0);
     }
   }, [savedState.loading, mode]);
@@ -131,6 +136,20 @@ const Home: React.FC<ExtendedHomeProps> = ({
         if (firstBtn) firstBtn.focus();
     }
   }, [isSourceMenuOpen]);
+
+  // 源菜单延时关闭逻辑
+  const handleMenuLeave = () => {
+    closeMenuTimeoutRef.current = setTimeout(() => {
+        setIsSourceMenuOpen(false);
+    }, 300);
+  };
+
+  const handleMenuEnter = () => {
+    if (closeMenuTimeoutRef.current) {
+        clearTimeout(closeMenuTimeoutRef.current);
+        closeMenuTimeoutRef.current = null;
+    }
+  };
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
     // 源站加载逻辑：只操作 loading/error
@@ -415,519 +434,512 @@ const Home: React.FC<ExtendedHomeProps> = ({
              <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto overflow-x-auto hide-scrollbar">
                 <button 
                     onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
-                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
                 >
-                    <Icon name="dns" className="text-lg" /><span>源站</span>
+                    <Icon name="explore" className="text-base" /><span>浏览片库</span>
                 </button>
                 <button 
                     onClick={() => { setMode('DOUBAN'); onStateUpdate({ isDoubanMode: true }); }}
-                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'DOUBAN' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'DOUBAN' ? 'bg-white dark:bg-slate-700 text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
                 >
-                    <Icon name="auto_awesome" className="text-lg" /><span>豆瓣</span>
+                    <Icon name="whatshot" className="text-base" /><span>热榜推荐</span>
                 </button>
                 <button 
-                    onClick={() => setMode('FAVORITE')}
-                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'FAVORITE' ? 'bg-amber-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setMode('LIBRARY')}
+                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'LIBRARY' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
                 >
-                    <Icon name="bookmark" className="text-lg" /><span>收藏</span>
-                </button>
-                <button 
-                    onClick={() => setMode('SETTINGS')}
-                    className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SETTINGS' ? 'bg-gray-800 text-white shadow-lg dark:bg-slate-100 dark:text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <Icon name="settings" className="text-lg" /><span>设置</span>
+                    <Icon name="collections_bookmark" className="text-base" /><span>历史与收藏</span>
                 </button>
              </div>
-
-             {mode === 'SOURCE' && (
-                <div className="relative w-full sm:w-auto">
-                   <button onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)} className="w-full flex items-center justify-between space-x-3 bg-gray-50 dark:bg-slate-900 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500">
-                      <div className="flex items-center space-x-2"><Icon name="settings_input_component" className="text-blue-500" /><span className="truncate max-w-[120px]">{currentSource.name}</span></div>
-                      <Icon name="expand_more" className={`transition-transform ${isSourceMenuOpen ? 'rotate-180' : ''}`} />
-                   </button>
-                   {isSourceMenuOpen && (
-                      <><div className="fixed inset-0 z-10" onClick={() => setIsSourceMenuOpen(false)}></div><div ref={sourceMenuRef} className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                        <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                            <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase bg-gray-50 dark:bg-slate-900/50">可用线路</div>
-                            {sources.map((s, idx) => (
-                                <button 
-                                    key={idx} 
-                                    onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }} 
-                                    className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 focus:bg-blue-50 dark:focus:bg-slate-600 outline-none flex items-center justify-between ${currentSource.api === s.api ? 'text-blue-600 bg-blue-50 font-bold' : 'text-gray-700 dark:text-gray-200'}`}
-                                >
-                                    <span className="truncate flex-1 mr-2">{s.name}</span>
-                                    {currentSource.api === s.api && <Icon name="check" className="text-xs" />}
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={() => { setMode('SETTINGS'); setIsSourceMenuOpen(false); }} className="w-full py-3 text-[10px] font-bold text-gray-400 hover:bg-gray-50 border-t border-gray-100 flex items-center justify-center space-x-2 uppercase tracking-wider outline-none focus:bg-gray-100">管理源站列表</button>
-                      </div></>
-                   )}
-                </div>
-             )}
+             
+             {/* 独立的设置按钮 */}
+             <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                 {mode === 'SOURCE' && (
+                     <div 
+                        className="relative" 
+                        ref={sourceMenuRef}
+                        onMouseLeave={handleMenuLeave}
+                        onMouseEnter={handleMenuEnter}
+                     >
+                         <button 
+                            onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)}
+                            className="flex items-center justify-between space-x-2 px-4 py-2.5 bg-gray-100 dark:bg-slate-700 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors w-full sm:w-64 border border-transparent focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                         >
+                            <div className="flex items-center space-x-2 truncate">
+                                <Icon name="dns" className="text-blue-500" />
+                                <span className="truncate">{currentSource.name}</span>
+                            </div>
+                            <Icon name="expand_more" />
+                         </button>
+                         
+                         {isSourceMenuOpen && (
+                             <div className="absolute top-full right-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-fadeIn origin-top-right">
+                                 <div className="max-h-[60vh] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                     {sources.map((s, idx) => (
+                                         <button 
+                                            key={idx}
+                                            onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }}
+                                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-all ${currentSource.api === s.api ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+                                         >
+                                             <div className="flex items-center space-x-2 truncate">
+                                                 <span className={`w-1.5 h-1.5 rounded-full ${currentSource.api === s.api ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
+                                                 <span className="truncate">{s.name}</span>
+                                             </div>
+                                             {s.isCustom && (
+                                                <div 
+                                                    onClick={(e) => { e.stopPropagation(); if(confirm('删除此自定义源？')) onRemoveCustomSource(s.api); }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all"
+                                                >
+                                                    <Icon name="delete" className="text-xs" />
+                                                </div>
+                                             )}
+                                         </button>
+                                     ))}
+                                 </div>
+                                 <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-slate-900/50">
+                                     <button 
+                                        onClick={() => { setShowAddSource(true); setIsSourceMenuOpen(false); }}
+                                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors"
+                                     >
+                                         <Icon name="add_link" /><span>添加自定义源</span>
+                                     </button>
+                                 </div>
+                             </div>
+                         )}
+                     </div>
+                 )}
+                 <button 
+                    onClick={() => setMode('SETTINGS')}
+                    className={`p-2.5 rounded-xl transition-all ${mode === 'SETTINGS' ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
+                    title="设置"
+                 >
+                     <Icon name="settings" className="text-xl" />
+                 </button>
+             </div>
           </div>
       </section>
 
-      {/* 动态内容展示 */}
-      {mode === 'SETTINGS' ? (
-        <section className="min-h-[60vh] animate-fadeIn space-y-8 pb-20">
-            {/* ... 设置页面内容 ... */}
-            {/* 顶层工具栏：数据同步与备份 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> 
-                {/* 1. 数据同步（源列表） */}
-                <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center">
-                                <Icon name="cloud_sync" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold dark:text-white">数据同步</h3>
-                                <p className="text-[10px] text-gray-500">同步您的自定义源</p>
-                            </div>
-                        </div>
-                        <div className="flex space-x-2 w-full sm:w-auto">
-                            <button onClick={exportSourcesData} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-blue-50 transition-all">导出本地</button>
-                            <button onClick={() => sourceFileRef.current?.click()} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-blue-50 transition-all">导入本地</button>
-                            <input type="file" ref={sourceFileRef} onChange={handleSourceUpload} accept=".json" className="hidden" />
-                        </div>
-                    </div>
-                    {/* 远程源导入框 */}
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex-1 flex space-x-2">
-                             <select
-                                className="w-24 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none dark:text-white"
-                                onChange={(e) => {
-                                    if(e.target.value) setRemoteSourceUrl(e.target.value);
-                                }}
-                                value={REMOTE_SOURCE_PRESETS.find(p => p.url === remoteSourceUrl) ? remoteSourceUrl : ""}
-                             >
-                                 <option value="" disabled>预设...</option>
-                                 {REMOTE_SOURCE_PRESETS.map((p, idx) => (
-                                     <option key={idx} value={p.url}>{p.name}</option>
-                                 ))}
-                                 {!REMOTE_SOURCE_PRESETS.find(p => p.url === remoteSourceUrl) && <option value={remoteSourceUrl} disabled>自定义</option>}
-                             </select>
-                            <input 
-                                type="url" 
-                                placeholder="输入远程源 JSON 链接..." 
-                                className="flex-1 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none dark:text-white"
-                                value={remoteSourceUrl}
-                                onChange={(e) => setRemoteSourceUrl(e.target.value)}
-                            />
-                        </div>
+      {/* 核心内容区 */}
+      {mode === 'DOUBAN' ? (
+        <DoubanModule 
+            state={savedState} 
+            onUpdate={onStateUpdate} 
+            onSelectMovie={(m) => onSearch(m.title, true)} 
+        />
+      ) : mode === 'LIBRARY' ? (
+        <div className="animate-fadeIn min-h-[50vh] space-y-12">
+            {/* History Section */}
+            <section>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+                        <Icon name="history" className="text-purple-600" />
+                        <span>观看历史 ({history.length})</span>
+                    </h2>
+                    {history.length > 0 && (
                         <button 
-                            onClick={handleRemoteSourceImport}
-                            disabled={isImporting || !remoteSourceUrl}
-                            className={`w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-bold transition-all flex items-center justify-center space-x-1 ${isImporting ? 'opacity-50' : 'hover:bg-blue-700 active:scale-95'}`}
+                            onClick={() => {
+                                if (confirmClear) {
+                                    clearHistory();
+                                    setHistory([]);
+                                    setConfirmClear(false);
+                                } else {
+                                    setConfirmClear(true);
+                                    setTimeout(() => setConfirmClear(false), 3000);
+                                }
+                            }} 
+                            className={`text-xs px-4 py-2 rounded-lg font-bold transition-all flex items-center space-x-1 ${confirmClear ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 hover:bg-red-50 hover:text-red-500'}`}
                         >
-                            <Icon name={isImporting ? "sync" : "cloud_download"} className={`text-sm ${isImporting ? 'animate-spin' : ''}`} />
-                            <span>网络导入</span>
+                            <Icon name="delete_sweep" />
+                            <span>{confirmClear ? '确认清空?' : '清空全部'}</span>
                         </button>
-                    </div>
+                    )}
                 </div>
-
-                {/* 2. 全量维护（一键备份） */}
-                <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl flex items-center justify-center">
-                                <Icon name="backup" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold dark:text-white">全量维护</h3>
-                                <p className="text-[10px] text-gray-500">备份历史、收藏、源站等数据</p>
-                            </div>
-                        </div>
-                        <div className="flex space-x-2 w-full sm:w-auto">
-                            <button onClick={exportFullBackup} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-amber-50 transition-all">保存备份</button>
-                            <button onClick={() => backupFileRef.current?.click()} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-bold border border-gray-100 dark:border-gray-700 hover:bg-amber-50 transition-all">还原备份</button>
-                            <input type="file" ref={backupFileRef} onChange={handleBackupUpload} accept=".json" className="hidden" />
-                        </div>
+                {history.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-gray-400 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                        <Icon name="history_toggle_off" className="text-4xl mb-2 text-gray-300 dark:text-slate-600" />
+                        <p className="text-sm">暂无观看记录</p>
                     </div>
-                    {/* 远程备份还原框 */}
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <input 
-                            type="url" 
-                            placeholder="输入全量备份 JSON 链接..." 
-                            className="flex-1 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500 outline-none dark:text-white"
-                            value={remoteBackupUrl}
-                            onChange={(e) => setRemoteBackupUrl(e.target.value)}
-                        />
+                ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-6">
+                        {history.map((movie) => (
+                            <div key={movie.id} className="relative group">
+                                <div onClick={() => handleMovieClick(movie)}>
+                                     <MovieCard 
+                                        movie={movie} 
+                                        viewType="HOME" 
+                                        onClick={() => {}} 
+                                        progress={(movie.currentTime || 0) / 60 * 100}
+                                    />
+                                </div>
+                                 <button 
+                                    onClick={(e) => { e.stopPropagation(); removeFromHistory(movie.id); setHistory(getHistory()); }}
+                                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all z-20"
+                                    title="删除记录"
+                                >
+                                    <Icon name="close" className="text-xs" />
+                                </button>
+                                {movie.currentEpisodeName && (
+                                    <div className="absolute bottom-16 right-2 px-1.5 py-0.5 bg-black/70 text-white text-[10px] rounded backdrop-blur-md z-20 pointer-events-none truncate max-w-[80%]">
+                                        {movie.currentEpisodeName}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Favorites Section */}
+            <section>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+                        <Icon name="bookmarks" className="text-yellow-600" />
+                        <span>我的收藏 ({favorites.length})</span>
+                    </h2>
+                    {favorites.length > 0 && (
                         <button 
-                            onClick={handleRemoteBackupImport}
-                            disabled={isImporting || !remoteBackupUrl}
-                            className={`px-4 py-2 rounded-xl bg-amber-600 text-white text-[10px] font-bold transition-all flex items-center justify-center space-x-1 ${isImporting ? 'opacity-50' : 'hover:bg-amber-700 active:scale-95'}`}
+                            onClick={handleClearFavs}
+                            className={`text-xs px-4 py-2 rounded-lg font-bold transition-all flex items-center space-x-1 ${confirmClearFav ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 hover:bg-red-50 hover:text-red-500'}`}
                         >
-                            <Icon name={isImporting ? "sync" : "cloud_sync"} className={`text-sm ${isImporting ? 'animate-spin' : ''}`} />
-                            <span>远程还原</span>
+                            <Icon name="delete_forever" />
+                            <span>{confirmClearFav ? '确定清空全部?' : '清空收藏夹'}</span>
                         </button>
+                    )}
+                </div>
+                {favorites.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-gray-400 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                        <Icon name="bookmark_border" className="text-4xl mb-2 text-gray-300 dark:text-slate-600" />
+                        <p className="text-sm">暂无收藏内容</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-6">
+                        {favorites.map(movie => (
+                            <div key={movie.id} className="relative group">
+                                <MovieCard movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
+                                 <button 
+                                    onClick={(e) => handleRemoveFavorite(e, movie.id)}
+                                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all z-20"
+                                    title="取消收藏"
+                                >
+                                    <Icon name="bookmark_remove" className="text-xs" />
+                                </button>
+                                {movie.sourceName && (
+                                    <div className="absolute bottom-16 right-2 px-1.5 py-0.5 bg-blue-600/80 text-white text-[10px] rounded backdrop-blur-md z-20 pointer-events-none">
+                                        {movie.sourceName}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+        </div>
+      ) : mode === 'SETTINGS' ? (
+        <section className="animate-fadeIn max-w-4xl mx-auto space-y-8 pb-10">
+            {/* 设置面板 */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                <h3 className="text-lg font-bold dark:text-white mb-6 flex items-center space-x-2 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <Icon name="tune" className="text-blue-500" /><span>源站管理与检测</span>
+                </h3>
+                
+                {/* 统计信息 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-center">
+                        <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{allSources.length}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">总源数</div>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl text-center">
+                        <div className="text-2xl font-black text-green-600 dark:text-green-400">{allSources.filter(s => !getDisabledSourceApis().includes(s.api)).length}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">可用源</div>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl text-center">
+                        <div className="text-2xl font-black text-purple-600 dark:text-purple-400">{allSources.filter(s => s.isCustom).length}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">自定义源</div>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl text-center">
+                        <div className="text-2xl font-black text-red-600 dark:text-red-400">{getDisabledSourceApis().length}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">已禁用</div>
                     </div>
                 </div>
 
-                {/* 3. 加速播放设置 */}
-                <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5 md:col-span-2">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-xl flex items-center justify-center">
-                                <Icon name="bolt" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold dark:text-white">加速播放 (CDN/代理前置)</h3>
-                                <p className="text-[10px] text-gray-500">为每个播放链接添加前置链接，提升加载速度</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-start">
-                             <div className="flex items-center space-x-2">
-                                <span className={`text-[10px] font-bold uppercase ${accConfig.enabled ? 'text-green-500' : 'text-gray-400'}`}>
-                                    {accConfig.enabled ? '已启用' : '已禁用'}
-                                </span>
-                                <button 
-                                    onClick={toggleAcceleration}
-                                    className={`w-10 h-5 rounded-full relative transition-all duration-300 ${accConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
-                                >
-                                    <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ${accConfig.enabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                                </button>
-                             </div>
-                        </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <input 
-                            type="url" 
-                            placeholder="输入加速前置链接 (默认: https://cfkua.wokaotianshi.eu.org)..." 
-                            className="flex-1 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs focus:ring-1 focus:ring-green-500 outline-none dark:text-white"
-                            value={accUrlInput}
-                            onChange={(e) => setAccUrlInput(e.target.value)}
-                        />
-                        <button 
-                            onClick={saveAcceleration}
-                            className="px-6 py-2.5 rounded-xl bg-green-600 text-white text-[10px] font-bold hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
-                        >
-                            <Icon name="save" className="text-sm" />
-                            <span>保存修改</span>
+                {/* 操作栏 */}
+                <div className="flex flex-wrap gap-3 mb-6">
+                    <button 
+                        onClick={runSourceCheck} 
+                        disabled={isCheckingSources}
+                        className={`flex items-center space-x-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm ${isCheckingSources ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                    >
+                        {isCheckingSources ? <Icon name="sync" className="animate-spin" /> : <Icon name="health_and_safety" />}
+                        <span>{isCheckingSources ? '正在全量检测...' : '一键健康检测'}</span>
+                    </button>
+                    
+                    {maintenanceStats && (
+                        <button onClick={confirmCleanup} className="flex items-center space-x-2 px-5 py-2.5 rounded-lg font-bold text-sm bg-green-600 text-white hover:bg-green-700 transition-all shadow-sm animate-fadeIn">
+                             <Icon name="cleaning_services" /><span>应用清理计划</span>
                         </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 italic">注：启用后，播放链接将变为：[前置链接]/[原始链接]（全局生效）</p>
-                </div>
-
-                {/* 4. 豆瓣图片代理设置 */}
-                <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5 md:col-span-2">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-pink-50 dark:bg-pink-900/20 text-pink-600 rounded-xl flex items-center justify-center">
-                                <Icon name="image" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold dark:text-white">豆瓣图片代理</h3>
-                                <p className="text-[10px] text-gray-500">仅用于解决豆瓣/WMDB海报的防盗链问题</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <input 
-                            type="url" 
-                            placeholder={`输入代理地址 (默认: ${DEFAULT_DOUBAN_PROXY})...`} 
-                            className="flex-1 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs focus:ring-1 focus:ring-pink-500 outline-none dark:text-white"
-                            value={doubanProxyInput}
-                            onChange={(e) => setDoubanProxyInput(e.target.value)}
-                        />
-                        <div className="flex space-x-2 w-full sm:w-auto">
-                            <button 
-                                onClick={resetDoubanProxy}
-                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-[10px] font-bold hover:bg-gray-200 transition-all"
-                            >
-                                重置
-                            </button>
-                            <button 
-                                onClick={saveDoubanProxy}
-                                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-pink-600 text-white text-[10px] font-bold hover:bg-pink-700 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
-                            >
-                                <Icon name="save" className="text-sm" />
-                                <span>保存</span>
-                            </button>
-                        </div>
-                    </div>
-                    <p className="text-[10px] text-gray-400 italic">当前默认值: {DEFAULT_DOUBAN_PROXY}</p>
-                </div>
-            </div>
-
-            {/* 核心管理列表 */}
-            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden flex flex-col">
-                {/* 列表头部操作 */}
-                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-slate-900/80 flex flex-col space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex flex-wrap space-x-2">
-                            <div className="flex bg-white dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-gray-700">
-                                <button 
-                                    onClick={handleSelectAll}
-                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center space-x-1.5"
-                                >
-                                    <Icon name="done_all" className="text-blue-500" /> <span className="hidden sm:inline">全选</span>
-                                </button>
-                                <button 
-                                    onClick={handleDeselectAll}
-                                    className="px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center space-x-1.5 border-l border-gray-100 dark:border-gray-700"
-                                >
-                                    <Icon name="close" className="text-red-500" /> <span className="hidden sm:inline">取消</span>
-                                </button>
-                            </div>
-                            <span className="text-[10px] sm:text-[11px] text-gray-400 font-bold bg-gray-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700">已选 {selectedApis.size}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={onResetSources} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-red-500 border border-red-100 hover:bg-red-50 transition-all">重置默认</button>
-                            <button onClick={() => setShowAddSource(true)} className="px-3 sm:px-4 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] sm:text-xs font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center space-x-1.5">
-                                <Icon name="add_link" className="text-sm" /> 新增
-                            </button>
-                            <button onClick={runSourceCheck} disabled={isCheckingSources} className="px-3 sm:px-4 py-1.5 bg-gray-100 dark:bg-slate-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] sm:text-xs font-bold flex items-center space-x-1.5">
-                                <Icon name={isCheckingSources ? "sync" : "health_and_safety"} className={isCheckingSources ? "animate-spin" : ""} />
-                                <span className="hidden sm:inline">检测</span>
-                            </button>
-                        </div>
-                    </div>
+                    )}
+                    
+                    <div className="flex-1"></div>
 
                     {selectedApis.size > 0 && (
-                        <div className="flex flex-wrap items-center space-x-2 animate-fadeIn pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <button onClick={() => handleBatchEnable(true)} className="flex-1 sm:flex-none px-3 py-1.5 bg-green-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-green-600 flex items-center justify-center space-x-1"><Icon name="visibility" className="text-sm" /> 启用</button>
-                            <button onClick={() => handleBatchEnable(false)} className="flex-1 sm:flex-none px-3 py-1.5 bg-gray-500 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-gray-600 flex items-center justify-center space-x-1"><Icon name="visibility_off" className="text-sm" /> 禁用</button>
-                            <button onClick={handleBatchDelete} className="flex-1 sm:flex-none px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-red-700 flex items-center justify-center space-x-1"><Icon name="delete_sweep" className="text-sm" /> 删除</button>
-                        </div>
+                        <>
+                            <button onClick={() => handleBatchEnable(true)} className="px-4 py-2 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg text-xs font-bold transition-colors">启用选中</button>
+                            <button onClick={() => handleBatchEnable(false)} className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold transition-colors">禁用选中</button>
+                            <button onClick={handleBatchDelete} className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-xs font-bold transition-colors">删除选中</button>
+                        </>
                     )}
                 </div>
 
-                {/* 状态反馈 */}
+                {/* 进度条 */}
                 {isCheckingSources && (
-                    <div className="px-6 py-3 bg-blue-50/50 dark:bg-blue-900/5 border-b border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center justify-between text-[10px] font-black text-blue-600 uppercase mb-1.5">
-                            <span>扫描进度 ({checkProgress.current}/{checkProgress.total})</span>
-                            <span className="animate-pulse truncate max-w-[50%]">{checkProgress.name}</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-blue-100 dark:bg-blue-900/20 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${(checkProgress.current / checkProgress.total) * 100}%` }}></div>
-                        </div>
-                    </div>
+                     <div className="mb-6 bg-gray-100 dark:bg-slate-700 rounded-full h-4 overflow-hidden relative">
+                         <div className="h-full bg-blue-500 transition-all duration-300 relative overflow-hidden" style={{ width: `${(checkProgress.current / checkProgress.total) * 100}%` }}>
+                              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                         </div>
+                         <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-gray-600 dark:text-gray-300">
+                             {checkProgress.name} ({checkProgress.current}/{checkProgress.total})
+                         </div>
+                     </div>
                 )}
-
-                {maintenanceStats && !isCheckingSources && (
-                    <div className="px-4 sm:px-6 py-4 bg-green-50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 animate-fadeIn">
-                        <div className="text-[11px] sm:text-xs font-bold text-green-700 dark:text-green-400 flex items-center space-x-2">
-                            <Icon name="check_circle" className="text-lg" />
-                            扫描完成：发现 {maintenanceStats.dead} 个失效，{maintenanceStats.duplicates} 个重复。
-                        </div>
-                        <div className="flex space-x-2 w-full sm:w-auto">
-                            <button onClick={() => setMaintenanceStats(null)} className="flex-1 sm:flex-none px-3 py-1.5 bg-white dark:bg-slate-800 text-gray-500 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-700">忽略</button>
-                            <button onClick={confirmCleanup} className="flex-1 sm:flex-none px-4 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold shadow-md">应用优化</button>
-                        </div>
+                
+                {/* 列表头 */}
+                <div className="flex items-center justify-between py-2 px-4 bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center space-x-3 w-1/3">
+                        <button onClick={selectedApis.size === allSources.length ? handleDeselectAll : handleSelectAll} className="hover:text-blue-500">
+                            <Icon name={selectedApis.size === allSources.length && allSources.length > 0 ? "check_box" : "check_box_outline_blank"} />
+                        </button>
+                        <span>源名称</span>
                     </div>
-                )}
+                    <div className="w-1/3 text-center">状态</div>
+                    <div className="w-1/3 text-right">操作</div>
+                </div>
 
-                {/* 线路单列列表 - 响应式优化 */}
-                <div className="flex-1 overflow-y-auto max-h-[700px] custom-scrollbar">
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {(() => {
-                            const seenApis = new Set<string>();
-                            const disabledApis = new Set(getDisabledSourceApis());
-
-                            return allSources.map((s, idx) => {
-                                const isDuplicate = seenApis.has(s.api);
-                                seenApis.add(s.api);
-                                const isEnabled = !disabledApis.has(s.api);
-                                const isSelected = selectedApis.has(s.api);
-
-                                return (
-                                    <div 
-                                        key={`${s.api}-${idx}`}
-                                        className={`flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-6 px-4 sm:px-6 py-4 sm:py-5 hover:bg-gray-50/80 dark:hover:bg-slate-900/80 transition-all ${!isEnabled ? 'bg-gray-50/20 opacity-60' : ''}`}
-                                    >
-                                        <div className="flex items-center space-x-6">
-                                            {/* 选择 */}
-                                            <button 
-                                                onClick={() => handleHandleToggleSelect(s.api)}
-                                                className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-sm' : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'}`}
-                                            >
-                                                {isSelected && <Icon name="check" className="text-base font-black" />}
-                                            </button>
-
-                                            {/* 图标与基本信息 */}
-                                            <div className="flex items-center space-x-3 min-w-0 flex-grow">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${s.isCustom ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30'}`}>
-                                                    <Icon name={s.isCustom ? "person" : "verified"} />
-                                                </div>
-                                                <div className="flex items-center space-x-2 truncate">
-                                                    <span className={`text-sm font-bold truncate ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-                                                        {s.name}
-                                                    </span>
-                                                    {currentSource.api === s.api && <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[8px] bg-green-500 text-white font-bold uppercase tracking-tighter">当前</span>}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* API URL 与 操作按钮 - 在移动端占据独立一行 */}
-                                        <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:flex-grow sm:justify-between min-w-0 pl-10 sm:pl-0">
-                                            <div 
-                                                onClick={() => copyToClipboard(s.api)}
-                                                className="text-[10px] text-gray-400 font-mono break-all sm:truncate max-w-full sm:max-w-xs md:max-w-md lg:max-w-xl hover:text-blue-500 cursor-pointer transition-colors"
-                                                title="点击复制 URL"
-                                            >
-                                                {s.api}
-                                            </div>
-
-                                            <div className="flex items-center justify-between sm:justify-end space-x-6 border-t sm:border-t-0 border-gray-100 dark:border-gray-800 pt-3 sm:pt-0">
-                                                <div className="flex items-center space-x-3">
-                                                    <span className={`text-[11px] font-black tracking-tight ${isEnabled ? 'text-emerald-500' : 'text-gray-400'}`}>
-                                                        {isEnabled ? '已启用' : '已停用'}
-                                                    </span>
-                                                    <button 
-                                                        onClick={() => toggleSourceEnabled(s.api, isEnabled)}
-                                                        className={`w-11 h-6 sm:w-12 sm:h-6.5 rounded-full relative transition-all duration-300 ${isEnabled ? 'bg-emerald-500 shadow-md shadow-emerald-500/40' : 'bg-gray-300 dark:bg-slate-700'}`}
-                                                    >
-                                                        <div className={`absolute top-1 left-1 bg-white w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full shadow-lg transform transition-transform duration-300 ease-out ${isEnabled ? 'translate-x-5 sm:translate-x-5.5' : 'translate-x-0'}`}></div>
-                                                    </button>
-                                                </div>
-
-                                                <div className="flex items-center space-x-2">
-                                                    <button onClick={() => copyToClipboard(s.api)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-all">
-                                                        <Icon name={copiedUrl === s.api ? "check" : "content_copy"} className="text-lg" />
-                                                    </button>
-                                                    {s.isCustom && (
-                                                        <button onClick={() => onRemoveCustomSource(s.api)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-xl transition-all">
-                                                            <Icon name="delete_outline" className="text-lg" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            });
-                        })()}
-                    </div>
+                {/* 源列表 */}
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-700 rounded-b-xl divide-y divide-gray-100 dark:divide-gray-700">
+                    {allSources.map((s, idx) => {
+                        const isDisabled = getDisabledSourceApis().includes(s.api);
+                        const isDead = maintenanceStats?.deadApis.includes(s.api);
+                        const isDup = maintenanceStats?.duplicateApis.includes(s.api);
+                        
+                        return (
+                            <div key={idx} className={`flex items-center justify-between p-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${isDisabled ? 'opacity-60 bg-gray-50/50' : ''}`}>
+                                <div className="flex items-center space-x-3 w-1/3 truncate pr-4">
+                                    <button onClick={() => handleHandleToggleSelect(s.api)} className={`text-gray-400 ${selectedApis.has(s.api) ? 'text-blue-500' : ''}`}>
+                                         <Icon name={selectedApis.has(s.api) ? "check_box" : "check_box_outline_blank"} />
+                                    </button>
+                                    <span className="font-medium truncate dark:text-gray-200" title={s.api}>
+                                        {s.name}
+                                        {s.isCustom && <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">自定义</span>}
+                                    </span>
+                                </div>
+                                <div className="w-1/3 flex justify-center">
+                                     {isDead ? (
+                                         <span className="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded">失效</span>
+                                     ) : isDup ? (
+                                         <span className="text-orange-500 text-xs font-bold bg-orange-50 px-2 py-1 rounded">重复</span>
+                                     ) : isDisabled ? (
+                                         <span className="text-gray-400 text-xs font-bold bg-gray-100 px-2 py-1 rounded">已禁用</span>
+                                     ) : (
+                                         <span className="text-green-500 text-xs font-bold bg-green-50 px-2 py-1 rounded">正常</span>
+                                     )}
+                                </div>
+                                <div className="w-1/3 flex justify-end items-center space-x-2">
+                                     <button 
+                                        onClick={() => toggleSourceEnabled(s.api, !isDisabled)}
+                                        className={`p-1.5 rounded-lg transition-colors ${isDisabled ? 'text-gray-400 hover:text-green-500 bg-gray-100 hover:bg-green-50' : 'text-green-500 hover:text-gray-400 bg-green-50 hover:bg-gray-100'}`}
+                                        title={isDisabled ? "启用" : "禁用"}
+                                     >
+                                         <Icon name={isDisabled ? "play_arrow" : "pause"} className="text-sm" />
+                                     </button>
+                                     {s.isCustom && (
+                                         <button 
+                                            onClick={() => { if(confirm(`删除源: ${s.name}?`)) onRemoveCustomSource(s.api); }}
+                                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                            title="删除"
+                                         >
+                                             <Icon name="delete" className="text-sm" />
+                                         </button>
+                                     )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            <div className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/20">
-                <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400 mb-3 flex items-center space-x-2">
-                    <Icon name="info" className="text-lg" /> 进阶提示
-                </h4>
-                <ul className="text-xs text-blue-600/70 dark:text-blue-400/70 space-y-2 list-disc pl-4 font-medium">
-                    <li>使用左侧<b>多选框</b>配合顶部的“批量启用/禁用”可快速清理大量不常用的采集源。</li>
-                    <li>所有配置变更均会实时同步至<b>本地缓存</b>，刷新页面不会丢失自定义线路。</li>
-                    <li><b>远程导入</b>：填入公开的 JSON 链接，可实时拉取社区维护的最新线路列表。</li>
-                </ul>
+            {/* 高级功能区 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* 播放加速配置 */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <h3 className="font-bold dark:text-white mb-4 flex items-center space-x-2"><Icon name="speed" className="text-orange-500" /><span>播放加速服务</span></h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
+                             <div className={`w-10 h-6 rounded-full p-1 cursor-pointer transition-colors ${accConfig.enabled ? 'bg-green-500' : 'bg-gray-300'}`} onClick={toggleAcceleration}>
+                                 <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${accConfig.enabled ? 'translate-x-4' : ''}`}></div>
+                             </div>
+                             <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{accConfig.enabled ? '加速服务已开启' : '加速服务已关闭'}</span>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 mb-1">加速节点地址</label>
+                            <div className="flex space-x-2">
+                                <input type="text" value={accUrlInput} onChange={e => setAccUrlInput(e.target.value)} className="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500" />
+                                <button onClick={saveAcceleration} className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs font-bold">保存</button>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-2">注：开启后将使用第三方节点转发m3u8流量，可解决部分资源跨域或加载慢的问题。</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 豆瓣代理配置 */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <h3 className="font-bold dark:text-white mb-4 flex items-center space-x-2"><Icon name="image" className="text-pink-500" /><span>豆瓣图片/API代理</span></h3>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 mb-1">代理服务地址</label>
+                            <div className="flex space-x-2">
+                                <input type="text" value={doubanProxyInput} onChange={e => setDoubanProxyInput(e.target.value)} placeholder="例如: https://api.example.com/proxy/" className="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-pink-500" />
+                                <button onClick={saveDoubanProxy} className="px-3 py-2 bg-pink-500 text-white rounded-lg text-xs font-bold">保存</button>
+                            </div>
+                            <div className="flex justify-between items-center mt-2">
+                                <p className="text-[10px] text-gray-400">用于解决豆瓣图片403及API跨域问题。</p>
+                                <button onClick={resetDoubanProxy} className="text-[10px] text-blue-500 hover:underline">恢复默认</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 导入导出 */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm md:col-span-2">
+                    <h3 className="font-bold dark:text-white mb-4 flex items-center space-x-2"><Icon name="import_export" className="text-purple-500" /><span>数据备份与同步</span></h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                         {/* 源导入导出 */}
+                         <div className="space-y-4">
+                             <h4 className="text-sm font-bold text-gray-600 dark:text-gray-300">源列表维护</h4>
+                             <div className="flex space-x-2">
+                                 <button onClick={exportSourcesData} className="flex-1 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-xs hover:bg-gray-50 dark:hover:bg-slate-700 font-bold flex items-center justify-center space-x-1"><Icon name="file_download" /><span>导出源文件</span></button>
+                                 <button onClick={() => sourceFileRef.current?.click()} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center justify-center space-x-1"><Icon name="file_upload" /><span>导入源文件</span></button>
+                                 <input type="file" ref={sourceFileRef} onChange={handleSourceUpload} className="hidden" accept=".json,.txt" />
+                             </div>
+                             
+                             <div className="bg-gray-50 dark:bg-slate-900/50 p-3 rounded-xl space-y-3">
+                                 <label className="text-xs font-bold text-gray-500">远程源订阅</label>
+                                 <select 
+                                     value={remoteSourceUrl} 
+                                     onChange={e => setRemoteSourceUrl(e.target.value)}
+                                     className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs mb-2"
+                                 >
+                                     {REMOTE_SOURCE_PRESETS.map((p, i) => <option key={i} value={p.url}>{p.name}</option>)}
+                                 </select>
+                                 <div className="flex space-x-2">
+                                     <input type="text" value={remoteSourceUrl} onChange={e => setRemoteSourceUrl(e.target.value)} className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs" placeholder="输入远程JSON地址" />
+                                     <button onClick={handleRemoteSourceImport} disabled={isImporting} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold disabled:opacity-50">
+                                         {isImporting ? '同步中' : '同步'}
+                                     </button>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* 全量备份 */}
+                         <div className="space-y-4">
+                             <h4 className="text-sm font-bold text-gray-600 dark:text-gray-300">全站数据备份</h4>
+                             <div className="flex space-x-2">
+                                 <button onClick={exportFullBackup} className="flex-1 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-xs hover:bg-gray-50 dark:hover:bg-slate-700 font-bold flex items-center justify-center space-x-1"><Icon name="archive" /><span>一键备份</span></button>
+                                 <button onClick={() => backupFileRef.current?.click()} className="flex-1 py-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100 flex items-center justify-center space-x-1"><Icon name="unarchive" /><span>一键还原</span></button>
+                                 <input type="file" ref={backupFileRef} onChange={handleBackupUpload} className="hidden" accept=".json" />
+                             </div>
+
+                             <div className="bg-gray-50 dark:bg-slate-900/50 p-3 rounded-xl space-y-3">
+                                 <label className="text-xs font-bold text-gray-500">远程备份恢复</label>
+                                 <div className="flex space-x-2">
+                                     <input type="text" value={remoteBackupUrl} onChange={e => setRemoteBackupUrl(e.target.value)} className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs" placeholder="输入备份文件URL" />
+                                     <button onClick={handleRemoteBackupImport} disabled={isImporting} className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-bold disabled:opacity-50">
+                                         {isImporting ? '下载中' : '恢复'}
+                                     </button>
+                                 </div>
+                             </div>
+
+                             <div className="pt-2">
+                                 <button onClick={onResetSources} className="w-full py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg text-xs font-bold transition-colors">重置所有设置 (危险)</button>
+                             </div>
+                         </div>
+                    </div>
+                </div>
             </div>
         </section>
       ) : (
-        <>
-          {mode !== 'FAVORITE' && mode !== 'DOUBAN' && (
-            // 源站模式：显示分类
-            mode === 'SOURCE' && (
-                <nav className="mb-8 overflow-x-auto hide-scrollbar">
-                    <div className="flex flex-wrap space-x-2 space-y-2 items-center">
-                        <button onClick={() => { onStateUpdate({ activeCategoryId: '', movies: [] }); loadData(currentSource.api, '', 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all mt-2 ${savedState.activeCategoryId === '' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>全部</button>
-                        {savedState.categories.map(cat => (
-                            <button key={cat.id} onClick={() => { onStateUpdate({ activeCategoryId: cat.id, movies: [] }); loadData(currentSource.api, cat.id, 1); }} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all mt-2 ${savedState.activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'}`}>{cat.name}</button>
-                        ))}
-                    </div>
-                </nav>
-            )
-          )}
-
-          {/* 历史记录条 (仅在源站模式显示，避免豆瓣模式太杂乱) */}
-          {history.length > 0 && mode === 'SOURCE' && (
-            <section className="mb-10">
-              <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold flex items-center space-x-2"><Icon name="history" className="text-blue-500" /> 播放历史</h2><button onClick={() => { if(confirmClear){ clearHistory(); setHistory([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(()=>setConfirmClear(false), 3000); } }} className="text-xs text-gray-400 hover:text-red-500 flex items-center space-x-1"><Icon name={confirmClear ? "warning" : "delete_outline"} className="text-sm" />{confirmClear ? "确认清除" : "清空"}</button></div>
-              <div className="flex space-x-4 overflow-x-auto pb-4 hide-scrollbar">
-                {history.slice(0, 10).map(m => (
-                    <div key={m.id} className="min-w-[140px] max-w-[140px] relative group">
-                        <MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} />
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); removeFromHistory(m.id); setHistory(getHistory()); }} 
-                            className="absolute top-2 right-2 w-7 h-7 bg-white dark:bg-slate-700 text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg z-20 flex items-center justify-center border border-gray-100 dark:border-gray-600 hover:scale-110 active:scale-95"
-                            title="删除此记录"
-                        >
-                            <Icon name="close" className="text-base font-bold"/>
-                        </button>
-                    </div>
-                ))}
+        <section>
+          {/* 分类筛选条 - 始终显示（如果有数据） */}
+          {savedState.categories.length > 0 && (
+              <div className="mb-6">
+                  <div className="flex flex-wrap gap-2">
+                      <button 
+                          onClick={() => {
+                              onStateUpdate({ activeCategoryId: '', movies: [], page: 1, loading: true });
+                              loadData(currentSource.api, '', 1);
+                          }} 
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${!savedState.activeCategoryId ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'}`}
+                      >
+                          全部
+                      </button>
+                      {savedState.categories.map(cat => (
+                          <button 
+                              key={cat.id} 
+                              onClick={() => {
+                                  onStateUpdate({ activeCategoryId: cat.id, movies: [], page: 1, loading: true });
+                                  loadData(currentSource.api, cat.id, 1);
+                              }}
+                              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${savedState.activeCategoryId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'}`}
+                          >
+                              {cat.name}
+                          </button>
+                      ))}
+                  </div>
               </div>
-            </section>
           )}
 
-          <section className="min-h-[60vh]">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                    <span className={`w-1.5 h-6 rounded-full ${mode === 'DOUBAN' ? 'bg-pink-500' : mode === 'FAVORITE' ? 'bg-amber-500' : 'bg-blue-600'}`}></span>
-                    {mode === 'DOUBAN' ? `豆瓣推荐: ${savedState.doubanTag}` : mode === 'FAVORITE' ? '我的收藏' : (savedState.activeCategoryId ? savedState.categories.find(c => c.id === savedState.activeCategoryId)?.name : '最新更新')}
-                </h2>
-                {mode === 'FAVORITE' && (
-                   <button onClick={handleClearFavs} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${confirmClearFav ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
-                       <Icon name={confirmClearFav ? "priority_high" : "delete_sweep"} className="text-lg" />
-                       {confirmClearFav ? "确认清空收藏" : "清空全部"}
-                   </button>
-                )}
-            </div>
-
-            {mode === 'DOUBAN' ? (
-                // 独立的豆瓣模块，接管所有豆瓣逻辑
-                <DoubanModule 
-                    state={savedState}
-                    onUpdate={onStateUpdate}
-                    onSelectMovie={handleMovieClick}
-                />
-            ) : mode === 'FAVORITE' ? (
-                // Android 4.4 compat: replaced grid with flex
-                <div className="flex flex-wrap -mx-2">
-                    {favorites.map((m) => (
-                        <div key={m.id} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6 relative group">
-                            <MovieCard movie={m} viewType="HOME" onClick={() => handleMovieClick(m)} />
-                            <button onClick={(e) => handleRemoveFavorite(e, m.id)} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 z-20"><Icon name="bookmark_remove" className="text-lg" /></button>
+          {savedState.loading ? (
+             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                 {Array.from({ length: 12 }).map((_, i) => (
+                     <div key={i} className="aspect-[2/3] bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
+                 ))}
+             </div>
+          ) : savedState.error ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <Icon name="cloud_off" className="text-5xl text-gray-300 mb-4" />
+                  <p className="text-gray-500 mb-2">无法连接到源站</p>
+                  <button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, 1)} className="text-blue-500 hover:underline px-4 py-2">点击重试</button>
+              </div>
+          ) : savedState.movies.length === 0 ? (
+               <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <Icon name="inbox" className="text-5xl text-gray-300 mb-4" />
+                  <p className="text-gray-500">该分类下暂无内容</p>
+              </div>
+          ) : (
+            <>
+                {/* 恢复为 Grid 布局 */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-6">
+                    {savedState.movies.map((movie) => (
+                        <div key={movie.id}>
+                             <MovieCard movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
                         </div>
                     ))}
-                    {favorites.length === 0 && <div className="w-full py-20 flex flex-col items-center text-gray-400 italic"><Icon name="collections_bookmark" className="text-5xl mb-4" /><p>收藏夹空空如也，快去收藏喜欢的影视吧</p></div>}
                 </div>
-            ) : savedState.loading && savedState.movies.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 space-y-4"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div><p className="text-sm text-gray-400">正在努力加载中...</p></div>
-            ) : savedState.error && savedState.movies.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <Icon name="error_outline" className="text-5xl text-gray-300 mb-4" />
-                    <p className="text-gray-500 mb-2">加载失败</p>
-                    <button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page)} className="text-blue-500 hover:underline">点击重试</button>
+                
+                <div className="mt-8 flex justify-center pb-8">
+                    <button 
+                        onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)}
+                        className="px-8 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full font-bold hover:shadow-lg hover:border-blue-400 transition-all text-sm flex items-center space-x-2"
+                    >
+                        <span>加载更多内容</span>
+                        <Icon name="expand_more" />
+                    </button>
                 </div>
-            ) : (
-                <>
-                    {/* Android 4.4 compat: replaced grid with flex */}
-                    <div className="flex flex-wrap -mx-2">
-                        {savedState.movies.map((movie, idx) => (
-                            <div key={`${movie.sourceApi}-${movie.id}-${idx}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
-                                <MovieCard movie={movie} viewType="HOME" onClick={() => handleMovieClick(movie)} />
-                            </div>
-                        ))}
-                    </div>
-                    {savedState.movies.length > 0 && (
-                        <div className="mt-16 flex justify-center pb-12"><button onClick={() => loadData(currentSource.api, savedState.activeCategoryId, savedState.page + 1)} disabled={savedState.loading} className={`flex items-center space-x-3 px-10 py-3.5 rounded-full font-bold transition-all shadow-lg ${savedState.loading ? 'bg-gray-100 dark:bg-slate-800 text-gray-400' : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200'}`}>{savedState.loading ? '加载中...' : '加载更多内容'}</button></div>
-                    )}
-                </>
-            )}
-          </section>
-        </>
+            </>
+          )}
+        </section>
       )}
-
-      {/* 模态框逻辑 */}
-      {showAddSource && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddSource(false)}></div><form onSubmit={handleAddSourceSubmit} className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
-                <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center space-x-2"><Icon name="add_circle" className="text-blue-500" />添加自定义采集源</h3>
-                <div className="space-y-4">
-                    <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">源站名称</label><input autoFocus required type="text" placeholder="例如：量子资源" className="w-full bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all dark:text-white" value={newSourceName} onChange={e => setNewSourceName(e.target.value)}/></div>
-                    <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">API 地址</label><input required type="url" placeholder="https://.../api.php/provide/vod/" className="w-full bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all dark:text-white" value={newSourceApi} onChange={e => setNewSourceApi(e.target.value)}/></div>
-                </div>
-                <div className="flex space-x-3 mt-8"><button type="button" onClick={() => setShowAddSource(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">取消</button><button type="submit" className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-blue-600 text-white shadow-lg">确认添加</button></div>
-            </form></div>
-      )}
-      
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
-      `}</style>
     </main>
   );
 };

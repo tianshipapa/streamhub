@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import { Movie, SearchProps } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -338,10 +337,10 @@ const Search: React.FC<SearchProps> = ({
              </div>
          ) : (
             <>
-                {/* Android 4.4 compat: replaced grid with flex */}
-                <div className="flex flex-wrap -mx-2">
+                {/* 恢复为 Grid 布局 */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-6">
                     {displayMovies.map((movie, index) => (
-                        <div key={`${movie.sourceApi}-${movie.id}-${index}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
+                        <div key={`${movie.sourceApi}-${movie.id}-${index}`}>
                             <MovieCard movie={movie} viewType="SEARCH" onClick={handleMovieClick} />
                         </div>
                     ))}
