@@ -257,6 +257,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   // 控制按钮引用
   const controlButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
+  const favoriteButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     playListRef.current = playList;
@@ -584,32 +586,87 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   // 键盘导航逻辑
   const handleControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     // 阻止事件冒泡，防止触发全局键盘监听（如快进/快退）
-    e.stopPropagation();
-
-    const totalButtons = 10;
-    let nextIndex = index;
-
+    // 但如果有处理了跳转，我们也阻止默认行为
+    // e.stopPropagation(); 
+    
+    let handled = false;
     switch(e.key) {
         case 'ArrowRight':
-            e.preventDefault();
-            nextIndex = (index + 1) % totalButtons;
+            if (index % 5 < 4) {
+                // Not the last in row
+                controlButtonsRef.current[index + 1]?.focus();
+                handled = true;
+            } else {
+                // Right edge -> Try to Go to Episode List
+                const activeEp = document.querySelector('.art-ep-item.active') as HTMLElement;
+                const firstEp = document.querySelector('.art-ep-item') as HTMLElement;
+                if (activeEp || firstEp) {
+                    (activeEp || firstEp).focus();
+                    handled = true;
+                }
+            }
             break;
         case 'ArrowLeft':
-            e.preventDefault();
-            nextIndex = (index - 1 + totalButtons) % totalButtons;
+            if (index % 5 > 0) {
+                 controlButtonsRef.current[index - 1]?.focus();
+                 handled = true;
+            }
             break;
         case 'ArrowDown':
-            e.preventDefault();
-            if (index < 5) nextIndex = index + 5;
+            if (index < 5) {
+                controlButtonsRef.current[index + 5]?.focus();
+                handled = true;
+            } else {
+                // Bottom row -> Go to Share button
+                shareButtonRef.current?.focus();
+                handled = true;
+            }
             break;
         case 'ArrowUp':
-            e.preventDefault();
-            if (index >= 5) nextIndex = index - 5;
+            if (index >= 5) {
+                controlButtonsRef.current[index - 5]?.focus();
+                handled = true;
+            } else {
+                 // Top row -> Go to Header Back button
+                 const backBtn = document.querySelector('header button[title="返回上一页"]') as HTMLElement || 
+                                 document.querySelector('header .group') as HTMLElement; // Try back button first, then logo
+                 if (backBtn) {
+                     backBtn.focus();
+                     handled = true;
+                 }
+            }
             break;
     }
 
-    if (nextIndex !== index && controlButtonsRef.current[nextIndex]) {
-        controlButtonsRef.current[nextIndex]?.focus();
+    if (handled) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+  };
+
+  const handleShareKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        controlButtonsRef.current[5]?.focus(); // Go to "Start" (Intro) button
+    } else if (e.key === 'ArrowRight') {
+         e.preventDefault();
+         favoriteButtonRef.current?.focus();
+    }
+  };
+
+  const handleFavoriteKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+         e.preventDefault();
+         controlButtonsRef.current[6]?.focus(); // Go to "End" (Outro) button
+    } else if (e.key === 'ArrowLeft') {
+         e.preventDefault();
+         shareButtonRef.current?.focus();
+    } else if (e.key === 'ArrowRight') {
+        // Go to episodes
+        e.preventDefault();
+        const activeEp = document.querySelector('.art-ep-item.active') as HTMLElement;
+        const firstEp = document.querySelector('.art-ep-item') as HTMLElement;
+        (activeEp || firstEp)?.focus();
     }
   };
 
@@ -1059,8 +1116,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     </div>
                 </div>
                 <div className="flex space-x-2">
-                    <button onClick={handleShare} className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium"><Icon name="share" className="text-lg" /><span>分享</span></button>
-                    <button onClick={handleFavoriteToggle} className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}>
+                    <button 
+                        ref={shareButtonRef}
+                        onClick={handleShare} 
+                        onKeyDown={handleShareKeyDown}
+                        className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    >
+                        <Icon name="share" className="text-lg" /><span>分享</span>
+                    </button>
+                    <button 
+                        ref={favoriteButtonRef}
+                        onClick={handleFavoriteToggle} 
+                        onKeyDown={handleFavoriteKeyDown}
+                        className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}
+                    >
                         <Icon name={isFavorited ? "bookmark" : "bookmark_border"} className="text-lg" />
                         <span>{isFavorited ? '已收藏' : '收藏'}</span>
                     </button>
