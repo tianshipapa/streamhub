@@ -191,14 +191,24 @@ interface AltSourceStatus {
     movie?: Movie;
 }
 
-const ControlButton: React.FC<{ icon: string; text: string; onClick: () => void; active?: boolean }> = ({ icon, text, onClick, active }) => (
+const ControlButton: React.FC<{ 
+    icon: string; 
+    text: string; 
+    onClick: () => void; 
+    active?: boolean; 
+    className?: string;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
+    buttonRef?: (el: HTMLButtonElement | null) => void;
+}> = ({ icon, text, onClick, active, className = '', onKeyDown, buttonRef }) => (
     <button 
+        ref={buttonRef}
         onClick={onClick}
-        className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'}`}
+        onKeyDown={onKeyDown}
+        className={`flex flex-col sm:flex-row items-center justify-center sm:space-x-1 p-1.5 sm:px-3 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none w-full h-full ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'} ${className}`}
         tabIndex={0}
     >
-        <Icon name={icon} className="text-base" />
-        <span className="whitespace-nowrap">{text}</span>
+        <Icon name={icon} className="text-xl sm:text-base mb-0.5 sm:mb-0" />
+        <span className="whitespace-nowrap scale-[0.85] sm:scale-100 origin-center">{text}</span>
     </button>
 );
 
@@ -244,6 +254,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const currentUrlRef = useRef<string>('');
   const skipConfigRef = useRef<SkipConfig>({ intro: 0, outroOffset: 0 });
   const episodeLayerRef = useRef<HTMLElement | null>(null);
+
+  // 控制按钮引用
+  const controlButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     playListRef.current = playList;
@@ -334,13 +347,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     if (movieId) loadDetails();
   }, [movieId, currentSource.api]);
 
-  // 初始化切源列表（仅静态展示，不触发请求）
-  const initAltSources = () => {
-      const others = sources.filter(s => s.api !== currentSource.api);
-      setAltSources(others.map(s => ({ source: s, status: 'idle' })));
-      setShowSourceSelector(true);
-  };
-
   // 触发切源搜索
   const startAltSearch = () => {
       if (!details) return;
@@ -380,6 +386,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             }));
         }
     });
+  };
+
+  // 初始化切源列表并自动开始搜索
+  const handleCheckSources = () => {
+      setShowSourceSelector(true);
+      startAltSearch();
   };
 
   const sortedAltSources = useMemo(() => {
@@ -567,6 +579,43 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
     if (isWebFullscreenRef.current) art.fullscreenWeb = true;
     if (isFullscreenRef.current) art.fullscreen = true;
+  };
+
+  // 键盘导航逻辑
+  const handleControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    // 阻止事件冒泡，防止触发全局键盘监听（如快进/快退）
+    e.stopPropagation();
+
+    const isMobile = window.innerWidth < 640; 
+    const totalButtons = 10;
+    let nextIndex = index;
+
+    switch(e.key) {
+        case 'ArrowRight':
+            e.preventDefault();
+            nextIndex = (index + 1) % totalButtons;
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            nextIndex = (index - 1 + totalButtons) % totalButtons;
+            break;
+        case 'ArrowDown':
+            e.preventDefault();
+            if (isMobile) {
+                if (index < 5) nextIndex = index + 5;
+            } 
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if (isMobile) {
+                if (index >= 5) nextIndex = index - 5;
+            }
+            break;
+    }
+
+    if (nextIndex !== index && controlButtonsRef.current[nextIndex]) {
+        controlButtonsRef.current[nextIndex]?.focus();
+    }
   };
 
   // 遥控器/键盘全局监听
@@ -985,22 +1034,28 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
          {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
       </section>
 
-      {/* 播放控制栏 */}
-      <section className="bg-gray-50 dark:bg-slate-800 p-3 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-x-auto hide-scrollbar">
-          <div className="flex items-center space-x-3 min-w-max">
-            <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} />
-            <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} />
-            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            <ControlButton icon="fast_rewind" text="快退 15s" onClick={handleBackward15} />
-            <ControlButton icon="fast_forward" text="快进 15s" onClick={handleForward15} />
-            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            <ControlButton icon="cleaning_services" text={enableAdBlock ? "广告:关" : "广告:开"} onClick={toggleAdBlock} active={enableAdBlock} />
-            <ControlButton icon="start" text="片头" onClick={handleSetIntro} />
-            <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} />
-            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            <ControlButton icon="wifi_tethering" text="切源" onClick={initAltSources} />
-            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} />
-            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} />
+      {/* 播放控制栏：移动端网格，桌面端单行 */}
+      <section className="bg-gray-50 dark:bg-slate-800 p-2 sm:p-3 rounded-2xl border border-gray-100 dark:border-gray-700">
+          <div className="grid grid-cols-5 gap-2 sm:flex sm:items-center sm:space-x-3 sm:overflow-x-auto sm:hide-scrollbar sm:block">
+            <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} buttonRef={(el) => controlButtonsRef.current[0] = el} onKeyDown={(e) => handleControlKeyDown(e, 0)} />
+            <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} buttonRef={(el) => controlButtonsRef.current[1] = el} onKeyDown={(e) => handleControlKeyDown(e, 1)} />
+            
+            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            
+            <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
+            <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
+            
+            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            
+            <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
+            <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
+            <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
+            
+            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
+            
+            <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
+            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
+            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
           </div>
       </section>
 
@@ -1081,10 +1136,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                       {!hasStartedSearch ? (
                           <div className="flex flex-col items-center justify-center py-10 space-y-4">
                               <Icon name="search" className="text-4xl text-gray-300" />
-                              <p className="text-sm text-gray-500 text-center px-8">点击下方按钮开始在所有可用线路中搜索该影片。</p>
-                              <button onClick={startAltSearch} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition-all">
-                                  开始全网搜索
-                              </button>
+                              <p className="text-sm text-gray-500 text-center px-8">正在启动全网搜索...</p>
                           </div>
                       ) : (
                           <div className="space-y-2">

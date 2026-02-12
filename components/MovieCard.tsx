@@ -7,9 +7,10 @@ interface MovieCardProps {
   movie: Movie;
   viewType: ViewState;
   onClick: (movie: Movie) => void;
+  progress?: number;
 }
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick, progress }) => {
   const isPlayerView = viewType === 'PLAYER';
   const showPlayButton = viewType === 'SEARCH' || isPlayerView;
   
@@ -139,14 +140,22 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
              )}
         </div>
 
+        {/* 进度条 */}
+        {typeof progress === 'number' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700/50 z-20 pointer-events-none">
+                <div className="h-full bg-blue-500" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}></div>
+            </div>
+        )}
+
         {showSourceSelector && hasMultipleSources && (
             <div 
                 ref={selectorRef} 
-                className="absolute bottom-10 right-2 w-40 bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-600 shadow-2xl z-30 overflow-hidden animate-fadeIn flex flex-col p-1"
+                className="absolute bottom-10 right-1 w-auto max-w-[calc(100%-0.5rem)] bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-600 shadow-2xl z-30 overflow-hidden animate-fadeIn flex flex-col p-1"
+                style={{ minWidth: '80px' }}
             >
                  <div className="text-[10px] text-gray-400 px-2 py-1.5 border-b border-gray-700 font-bold flex items-center space-x-1">
                      <Icon name="auto_awesome" className="text-xs text-purple-400" />
-                     <span>请选择片源</span>
+                     <span className="truncate">请选择片源</span>
                  </div>
                  <div className="max-h-48 overflow-y-auto custom-scrollbar">
                      {movie.availableSources?.map((src, idx) => (
@@ -155,10 +164,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, viewType, onClick }) => {
                             tabIndex={0}
                             onClick={(e) => handleSourceClick(e, src.api, src.name, src.vodId)}
                             onKeyDown={(e) => handleKeyDown(e, src.api, src.name, src.vodId)}
-                            className="px-3 py-2 text-xs text-gray-200 hover:bg-blue-600 focus:bg-blue-600 hover:text-white focus:text-white cursor-pointer transition-colors flex items-center space-x-2 rounded-lg m-0.5 outline-none"
+                            className="px-2 py-2 text-xs text-gray-200 hover:bg-blue-600 focus:bg-blue-600 hover:text-white focus:text-white cursor-pointer transition-colors flex items-center space-x-2 rounded-lg m-0.5 outline-none"
                          >
-                             <Icon name="movie" className="text-[12px] opacity-70" />
-                             <span className="truncate">{src.name}</span>
+                             <Icon name="movie" className="text-[12px] opacity-70 flex-shrink-0" />
+                             <span className="truncate min-w-0">{src.name}</span>
                          </div>
                      ))}
                  </div>

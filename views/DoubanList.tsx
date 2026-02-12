@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { Movie, HomeViewState } from '../types';
 import MovieCard from '../components/MovieCard';
@@ -209,10 +208,10 @@ const DoubanModule: React.FC<DoubanModuleProps> = ({
         </div>
       )}
 
-      {/* 列表网格 - Android 4.4 compat: replaced grid with flex */}
-      <div className="flex flex-wrap -mx-2">
+      {/* 恢复为 Grid 布局 */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-6">
         {state.doubanMovies.map((movie) => (
-          <div key={`douban-${movie.id}`} className="w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-2 mb-6">
+          <div key={`douban-${movie.id}`}>
              <DoubanItem 
                movie={movie} 
                onClick={() => onSelectMovie(movie)} 
