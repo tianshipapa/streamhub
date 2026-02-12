@@ -10,7 +10,7 @@ import {
   addToHistory, 
   clearHistory, 
   removeFromHistory,
-  getFavorites,
+  getFavorites, 
   clearFavorites,
   removeFromFavorites,
   exportSourcesData,
@@ -43,6 +43,28 @@ interface MaintenanceStats {
 interface ExtendedHomeProps extends HomeProps {
   allSources: Source[]; 
 }
+
+const MobileNavButton = ({ 
+  active, 
+  onClick, 
+  icon, 
+  label,
+  colorClass
+}: { 
+  active: boolean; 
+  onClick: () => void; 
+  icon: string; 
+  label: string;
+  colorClass: string;
+}) => (
+  <button 
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center py-2.5 rounded-xl transition-all duration-300 border border-transparent ${active ? `${colorClass} shadow-sm border-gray-100 dark:border-gray-700` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+  >
+      <Icon name={icon} className="text-xl mb-0.5" />
+      <span className="text-[10px] font-bold">{label}</span>
+  </button>
+);
 
 const Home: React.FC<ExtendedHomeProps> = ({ 
   setView, 
@@ -401,8 +423,41 @@ const Home: React.FC<ExtendedHomeProps> = ({
     <main className="flex-grow max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6 w-full animate-fadeIn">
       
       {/* 顶部主切换栏 */}
-      <section className="mb-8">
-          <div className="flex bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar items-center">
+      <section className="mb-6 sm:mb-8">
+          {/* Mobile Layout - Grid */}
+          <div className="grid grid-cols-4 gap-2 sm:hidden bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+             <MobileNavButton 
+                 active={mode === 'SOURCE'}
+                 onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
+                 icon="explore"
+                 label="片库"
+                 colorClass="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+             />
+             <MobileNavButton 
+                 active={mode === 'DOUBAN'}
+                 onClick={() => { setMode('DOUBAN'); onStateUpdate({ isDoubanMode: true }); }}
+                 icon="whatshot"
+                 label="热榜"
+                 colorClass="bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400"
+             />
+             <MobileNavButton 
+                 active={mode === 'LIBRARY'}
+                 onClick={() => setMode('LIBRARY')}
+                 icon="collections_bookmark"
+                 label="收藏"
+                 colorClass="bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400"
+             />
+             <MobileNavButton 
+                 active={mode === 'SETTINGS'}
+                 onClick={() => setMode('SETTINGS')}
+                 icon="settings"
+                 label="设置"
+                 colorClass="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
+             />
+          </div>
+
+          {/* Desktop Layout - Flex Pill */}
+          <div className="hidden sm:flex bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar items-center">
              <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto">
                 <button 
                     onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
