@@ -259,6 +259,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const controlButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // 新增引用
+  const accButtonRef = useRef<HTMLButtonElement>(null);
+  const sourceListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     playListRef.current = playList;
@@ -670,6 +674,74 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   };
 
+  // Acceleration Button Keyboard Logic
+  const handleAccButtonKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        // Try focus section tabs first
+        const firstSection = document.querySelector('.bg-white .flex.space-x-2 button') as HTMLElement;
+        if (firstSection) {
+            firstSection.focus();
+            return;
+        }
+        // Else focus first episode
+        const firstEp = document.querySelector('.bg-white .art-ep-list .art-ep-item') as HTMLElement;
+        if (firstEp) firstEp.focus();
+    } else if (e.key === 'ArrowLeft') {
+         e.preventDefault();
+         // Focus header back button or top right control
+         const backBtn = document.querySelector('header button[title="返回上一页"]') as HTMLElement;
+         if (backBtn) backBtn.focus();
+    }
+  };
+
+  const handleSectionTabKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          accButtonRef.current?.focus();
+      } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const firstEp = document.querySelector('.bg-white .art-ep-list .art-ep-item') as HTMLElement;
+          if (firstEp) firstEp.focus();
+      }
+  };
+
+  const handleEpisodeItemKeyDown = (e: React.KeyboardEvent, index: number) => {
+      if (e.key === 'ArrowUp') {
+          // If in first row (approx < 5 items), go to Sections or Acc Button
+          if (index < 5) {
+               e.preventDefault();
+               if (episodeSections.length > 0) {
+                   const activeSection = document.querySelector('.bg-white .flex.space-x-2 button.bg-blue-600') as HTMLElement;
+                   const firstSection = document.querySelector('.bg-white .flex.space-x-2 button') as HTMLElement;
+                   (activeSection || firstSection)?.focus();
+               } else {
+                   accButtonRef.current?.focus();
+               }
+          }
+      }
+  };
+
+  // Auto-focus source list when modal opens with results
+  useEffect(() => {
+    if (showSourceSelector && sortedAltSources.length > 0) {
+        const active = document.activeElement;
+        // Only hijack focus if it's not already inside the list container
+        if (sourceListRef.current && !sourceListRef.current.contains(active)) {
+             // Find first non-disabled button (status != searching)
+             setTimeout(() => {
+                 const firstBtn = sourceListRef.current?.querySelector('button:not([disabled])') as HTMLElement;
+                 if (firstBtn) firstBtn.focus();
+                 else {
+                     // Fallback to close button if list isn't ready
+                     const closeBtn = document.querySelector('.fixed .p-4 button') as HTMLElement;
+                     if (closeBtn) closeBtn.focus();
+                 }
+             }, 100);
+        }
+    }
+  }, [showSourceSelector, sortedAltSources]);
+
   // 遥控器/键盘全局监听
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -959,6 +1031,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   return (
     <main className="container mx-auto px-4 py-6 space-y-8 animate-fadeIn relative">
        <style>{`
+        /* ... existing styles ... */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
@@ -1159,7 +1232,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
                     <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
                 </h3>
-                <button onClick={toggleTempAcceleration} className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}>
+                <button 
+                    ref={accButtonRef}
+                    onKeyDown={handleAccButtonKeyDown}
+                    onClick={toggleTempAcceleration} 
+                    className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}
+                >
                     <Icon name="bolt" className="text-xs" />
                     <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
                 </button>
@@ -1168,13 +1246,27 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             {episodeSections.length > 0 && (
                 <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
                     {episodeSections.map((sec, idx) => (
-                        <button key={idx} onClick={() => setCurrentSectionIndex(idx)} className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}>{sec.label}</button>
+                        <button 
+                            key={idx} 
+                            onClick={() => setCurrentSectionIndex(idx)} 
+                            onKeyDown={handleSectionTabKeyDown}
+                            className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
+                        >
+                            {sec.label}
+                        </button>
                     ))}
                 </div>
             )}
             <div className="art-ep-list custom-scrollbar">
                 {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
-                    <button key={index} onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} className={`art-ep-item ${currentUrl === ep.url ? 'active' : ''}`}>{ep.name}</button>
+                    <button 
+                        key={index} 
+                        onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} 
+                        onKeyDown={(e) => handleEpisodeItemKeyDown(e, index)}
+                        className={`art-ep-item outline-none focus:ring-2 focus:ring-blue-400 ${currentUrl === ep.url ? 'active' : ''}`}
+                    >
+                        {ep.name}
+                    </button>
                 ))}
             </div>
         </div>
@@ -1186,9 +1278,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
               <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
                   <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                       <h3 className="font-bold text-lg dark:text-white">全网切源 - {details?.title}</h3>
-                      <button onClick={() => setShowSourceSelector(false)}><Icon name="close" /></button>
+                      <button onClick={() => setShowSourceSelector(false)} className="outline-none focus:ring-2 focus:ring-blue-400 rounded p-1"><Icon name="close" /></button>
                   </div>
-                  <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+                  <div ref={sourceListRef} className="p-4 overflow-y-auto custom-scrollbar flex-1">
                       {!hasStartedSearch ? (
                           <div className="flex flex-col items-center justify-center py-10 space-y-4">
                               <Icon name="search" className="text-4xl text-gray-300" />
@@ -1197,7 +1289,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                       ) : (
                           <div className="space-y-2">
                              {sortedAltSources.map((alt, idx) => (
-                                <button key={idx} onClick={() => handleAltSourceClick(alt)} disabled={alt.status === 'searching'} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left ${alt.source.api === currentSource.api ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400'}`}>
+                                <button key={idx} onClick={() => handleAltSourceClick(alt)} disabled={alt.status === 'searching'} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all text-left outline-none focus:ring-2 focus:ring-blue-400 ${alt.source.api === currentSource.api ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-500' : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-gray-800 hover:border-blue-400'}`}>
                                     <div className="flex items-center space-x-3">
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs ${alt.status === 'success' ? 'bg-green-500' : alt.status === 'searching' ? 'bg-blue-400' : 'bg-gray-300 dark:bg-slate-700'}`}>
                                             {alt.status === 'searching' ? <Icon name="sync" className="animate-spin text-lg" /> : alt.status === 'success' ? 'OK' : '无'}
