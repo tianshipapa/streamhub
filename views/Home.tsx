@@ -64,12 +64,6 @@ const Home: React.FC<ExtendedHomeProps> = ({
   const [favorites, setFavorites] = useState<Movie[]>([]);
   const [mode, setMode] = useState<'SOURCE' | 'DOUBAN' | 'LIBRARY' | 'SETTINGS'>(savedState.isDoubanMode ? 'DOUBAN' : 'SOURCE');
   
-  const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false);
-  const sourceMenuRef = useRef<HTMLDivElement>(null);
-  
-  // 延时关闭定时器
-  const closeMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClearFav, setConfirmClearFav] = useState(false);
   
@@ -128,28 +122,6 @@ const Home: React.FC<ExtendedHomeProps> = ({
         window.scrollTo(0, 0);
     }
   }, [savedState.loading, mode]);
-
-  // 当源列表打开时，自动聚焦到第一个选项
-  useEffect(() => {
-    if (isSourceMenuOpen && sourceMenuRef.current) {
-        const firstBtn = sourceMenuRef.current.querySelector('button');
-        if (firstBtn) firstBtn.focus();
-    }
-  }, [isSourceMenuOpen]);
-
-  // 源菜单延时关闭逻辑
-  const handleMenuLeave = () => {
-    closeMenuTimeoutRef.current = setTimeout(() => {
-        setIsSourceMenuOpen(false);
-    }, 300);
-  };
-
-  const handleMenuEnter = () => {
-    if (closeMenuTimeoutRef.current) {
-        clearTimeout(closeMenuTimeoutRef.current);
-        closeMenuTimeoutRef.current = null;
-    }
-  };
 
   const loadData = async (apiUrl: string, typeId: string, pageNum: number) => {
     // 源站加载逻辑：只操作 loading/error
@@ -430,8 +402,8 @@ const Home: React.FC<ExtendedHomeProps> = ({
       
       {/* 顶部主切换栏 */}
       <section className="mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all duration-300">
-             <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto overflow-x-auto hide-scrollbar">
+          <div className="flex bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar items-center">
+             <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto">
                 <button 
                     onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
                     className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
@@ -452,65 +424,11 @@ const Home: React.FC<ExtendedHomeProps> = ({
                 </button>
              </div>
              
-             {/* 独立的设置按钮 */}
-             <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                 {mode === 'SOURCE' && (
-                     <div 
-                        className="relative" 
-                        ref={sourceMenuRef}
-                        onMouseLeave={handleMenuLeave}
-                        onMouseEnter={handleMenuEnter}
-                     >
-                         <button 
-                            onClick={() => setIsSourceMenuOpen(!isSourceMenuOpen)}
-                            className="flex items-center justify-between space-x-2 px-4 py-2.5 bg-gray-100 dark:bg-slate-700 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors w-full sm:w-64 border border-transparent focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                         >
-                            <div className="flex items-center space-x-2 truncate">
-                                <Icon name="dns" className="text-blue-500" />
-                                <span className="truncate">{currentSource.name}</span>
-                            </div>
-                            <Icon name="expand_more" />
-                         </button>
-                         
-                         {isSourceMenuOpen && (
-                             <div className="absolute top-full right-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-fadeIn origin-top-right">
-                                 <div className="max-h-[60vh] overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                     {sources.map((s, idx) => (
-                                         <button 
-                                            key={idx}
-                                            onClick={() => { onSourceChange(s); setIsSourceMenuOpen(false); }}
-                                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-all ${currentSource.api === s.api ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
-                                         >
-                                             <div className="flex items-center space-x-2 truncate">
-                                                 <span className={`w-1.5 h-1.5 rounded-full ${currentSource.api === s.api ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
-                                                 <span className="truncate">{s.name}</span>
-                                             </div>
-                                             {s.isCustom && (
-                                                <div 
-                                                    onClick={(e) => { e.stopPropagation(); if(confirm('删除此自定义源？')) onRemoveCustomSource(s.api); }}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all"
-                                                >
-                                                    <Icon name="delete" className="text-xs" />
-                                                </div>
-                                             )}
-                                         </button>
-                                     ))}
-                                 </div>
-                                 <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-slate-900/50">
-                                     <button 
-                                        onClick={() => { setShowAddSource(true); setIsSourceMenuOpen(false); }}
-                                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors"
-                                     >
-                                         <Icon name="add_link" /><span>添加自定义源</span>
-                                     </button>
-                                 </div>
-                             </div>
-                         )}
-                     </div>
-                 )}
+             {/* 独立的设置按钮 - 无下拉菜单 */}
+             <div className="ml-auto pl-2">
                  <button 
                     onClick={() => setMode('SETTINGS')}
-                    className={`p-2.5 rounded-xl transition-all ${mode === 'SETTINGS' ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
+                    className={`p-3 rounded-xl transition-all ${mode === 'SETTINGS' ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
                     title="设置"
                  >
                      <Icon name="settings" className="text-xl" />
@@ -636,6 +554,31 @@ const Home: React.FC<ExtendedHomeProps> = ({
         </div>
       ) : mode === 'SETTINGS' ? (
         <section className="animate-fadeIn max-w-4xl mx-auto space-y-8 pb-10">
+            {/* 核心源切换 */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+                <h3 className="text-lg font-bold dark:text-white mb-6 flex items-center space-x-2 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <Icon name="dns" className="text-blue-500" /><span>当前源切换</span>
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {sources.map((s, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => onSourceChange(s)}
+                            className={`p-4 rounded-xl border text-sm font-bold flex items-center justify-between transition-all outline-none focus:ring-2 focus:ring-blue-500 ${currentSource.api === s.api ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-gray-50 dark:bg-slate-900 border-transparent text-gray-700 dark:text-gray-300 hover:border-blue-400'}`}
+                        >
+                            <span className="truncate">{s.name}</span>
+                            {currentSource.api === s.api && <Icon name="check_circle" className="text-base" />}
+                        </button>
+                    ))}
+                    <button 
+                        onClick={() => setShowAddSource(true)}
+                        className="p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-gray-400 hover:text-blue-500 hover:border-blue-500 transition-all flex items-center justify-center space-x-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <Icon name="add_link" /><span>添加自定义源</span>
+                    </button>
+                </div>
+            </div>
+
             {/* 设置面板 */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                 <h3 className="text-lg font-bold dark:text-white mb-6 flex items-center space-x-2 border-b border-gray-100 dark:border-gray-700 pb-4">
@@ -723,14 +666,26 @@ const Home: React.FC<ExtendedHomeProps> = ({
                         
                         return (
                             <div key={idx} className={`flex items-center justify-between p-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${isDisabled ? 'opacity-60 bg-gray-50/50' : ''}`}>
-                                <div className="flex items-center space-x-3 w-1/3 truncate pr-4">
-                                    <button onClick={() => handleHandleToggleSelect(s.api)} className={`text-gray-400 ${selectedApis.has(s.api) ? 'text-blue-500' : ''}`}>
+                                <div className="flex items-center space-x-3 w-1/3 overflow-hidden pr-2">
+                                    <button onClick={() => handleHandleToggleSelect(s.api)} className={`flex-shrink-0 text-gray-400 ${selectedApis.has(s.api) ? 'text-blue-500' : ''}`}>
                                          <Icon name={selectedApis.has(s.api) ? "check_box" : "check_box_outline_blank"} />
                                     </button>
-                                    <span className="font-medium truncate dark:text-gray-200" title={s.api}>
-                                        {s.name}
-                                        {s.isCustom && <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">自定义</span>}
-                                    </span>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-medium truncate dark:text-gray-200" title={s.name}>
+                                            {s.name}
+                                            {s.isCustom && <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">自定义</span>}
+                                        </span>
+                                        <div className="flex items-center space-x-1 text-[10px] text-gray-400 mt-0.5">
+                                            <span className="truncate max-w-[200px]" title={s.api}>{s.api}</span>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); copyToClipboard(s.api); }}
+                                                className={`${copiedUrl === s.api ? 'text-green-500' : 'hover:text-blue-500'} transition-colors flex-shrink-0`}
+                                                title="复制地址"
+                                            >
+                                                <Icon name={copiedUrl === s.api ? "check" : "content_copy"} className="text-[10px]" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="w-1/3 flex justify-center">
                                      {isDead ? (
@@ -825,16 +780,20 @@ const Home: React.FC<ExtendedHomeProps> = ({
                              
                              <div className="bg-gray-50 dark:bg-slate-900/50 p-3 rounded-xl space-y-3">
                                  <label className="text-xs font-bold text-gray-500">远程源订阅</label>
-                                 <select 
-                                     value={remoteSourceUrl} 
-                                     onChange={e => setRemoteSourceUrl(e.target.value)}
-                                     className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs mb-2"
-                                 >
-                                     {REMOTE_SOURCE_PRESETS.map((p, i) => <option key={i} value={p.url}>{p.name}</option>)}
-                                 </select>
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                     {REMOTE_SOURCE_PRESETS.map((p, i) => (
+                                         <button 
+                                             key={i} 
+                                             onClick={() => setRemoteSourceUrl(p.url)}
+                                             className={`px-3 py-2 rounded-lg text-xs font-bold text-left truncate border transition-all outline-none focus:ring-2 focus:ring-purple-500 ${remoteSourceUrl === p.url ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-purple-400'}`}
+                                         >
+                                             {p.name}
+                                         </button>
+                                     ))}
+                                 </div>
                                  <div className="flex space-x-2">
-                                     <input type="text" value={remoteSourceUrl} onChange={e => setRemoteSourceUrl(e.target.value)} className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs" placeholder="输入远程JSON地址" />
-                                     <button onClick={handleRemoteSourceImport} disabled={isImporting} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold disabled:opacity-50">
+                                     <input type="text" value={remoteSourceUrl} onChange={e => setRemoteSourceUrl(e.target.value)} className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-purple-500" placeholder="输入远程JSON地址" />
+                                     <button onClick={handleRemoteSourceImport} disabled={isImporting} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-purple-700 transition-colors shadow-sm">
                                          {isImporting ? '同步中' : '同步'}
                                      </button>
                                  </div>
@@ -900,10 +859,9 @@ const Home: React.FC<ExtendedHomeProps> = ({
           )}
 
           {savedState.loading ? (
-             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                 {Array.from({ length: 12 }).map((_, i) => (
-                     <div key={i} className="aspect-[2/3] bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
-                 ))}
+             <div className="flex flex-col justify-center items-center py-32 space-y-4 animate-fadeIn">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-200 dark:border-gray-700 border-t-blue-600 dark:border-t-blue-500"></div>
+                <p className="text-sm font-bold text-gray-500 dark:text-gray-400 animate-pulse">加载中..</p>
              </div>
           ) : savedState.error ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -939,6 +897,26 @@ const Home: React.FC<ExtendedHomeProps> = ({
             </>
           )}
         </section>
+      )}
+
+      {showAddSource && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddSource(false)}></div>
+          <form onSubmit={handleAddSourceSubmit} className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-2"><Icon name="add_link" className="text-blue-500" />添加自定义源</h3>
+            <div className="space-y-4">
+              <input required type="text" placeholder="源名称" className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm" value={newSourceName} onChange={e => setNewSourceName(e.target.value)}/>
+              <div>
+                <input required type="text" placeholder="采集接口URL" className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm" value={newSourceApi} onChange={e => setNewSourceApi(e.target.value)}/>
+                <p className="text-[10px] text-gray-400 mt-1.5 ml-1">示例: https://api.example.com/api.php/provide/vod/at/xml</p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button type="button" onClick={() => setShowAddSource(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">取消</button>
+              <button type="submit" className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-blue-600 text-white shadow-lg">确认添加</button>
+            </div>
+          </form>
+        </div>
       )}
     </main>
   );
