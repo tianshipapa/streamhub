@@ -204,10 +204,10 @@ const ControlButton: React.FC<{
         ref={buttonRef}
         onClick={onClick}
         onKeyDown={onKeyDown}
-        className={`flex flex-col sm:flex-row items-center justify-center sm:space-x-1 p-1.5 sm:px-3 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none w-full h-full ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'} ${className}`}
+        className={`flex flex-col items-center justify-center p-1.5 sm:px-3 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none w-full h-full ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'} ${className}`}
         tabIndex={0}
     >
-        <Icon name={icon} className="text-xl sm:text-base mb-0.5 sm:mb-0" />
+        <Icon name={icon} className="text-xl sm:text-base mb-0.5" />
         <span className="whitespace-nowrap scale-[0.85] sm:scale-100 origin-center">{text}</span>
     </button>
 );
@@ -586,7 +586,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     // 阻止事件冒泡，防止触发全局键盘监听（如快进/快退）
     e.stopPropagation();
 
-    const isMobile = window.innerWidth < 640; 
     const totalButtons = 10;
     let nextIndex = index;
 
@@ -601,15 +600,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             break;
         case 'ArrowDown':
             e.preventDefault();
-            if (isMobile) {
-                if (index < 5) nextIndex = index + 5;
-            } 
+            if (index < 5) nextIndex = index + 5;
             break;
         case 'ArrowUp':
             e.preventDefault();
-            if (isMobile) {
-                if (index >= 5) nextIndex = index - 5;
-            }
+            if (index >= 5) nextIndex = index - 5;
             break;
     }
 
@@ -1034,25 +1029,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
          {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
       </section>
 
-      {/* 播放控制栏：移动端网格，桌面端单行 */}
+      {/* 播放控制栏：改为所有屏幕统一 5列网格布局，确保2行显示 */}
       <section className="bg-gray-50 dark:bg-slate-800 p-2 sm:p-3 rounded-2xl border border-gray-100 dark:border-gray-700">
-          <div className="grid grid-cols-5 gap-2 sm:flex sm:items-center sm:space-x-3 sm:overflow-x-auto sm:hide-scrollbar sm:block">
+          <div className="grid grid-cols-5 gap-2">
             <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} buttonRef={(el) => controlButtonsRef.current[0] = el} onKeyDown={(e) => handleControlKeyDown(e, 0)} />
             <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} buttonRef={(el) => controlButtonsRef.current[1] = el} onKeyDown={(e) => handleControlKeyDown(e, 1)} />
-            
-            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            
             <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
             <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
-            
-            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            
             <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
+            
             <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
             <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
-            
-            <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-600 mx-2"></div>
-            
             <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
             <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
             <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />

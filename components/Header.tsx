@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ViewState } from '../types';
 import { Icon } from './Icon';
@@ -43,13 +44,13 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
            setHotSearchList(titles);
         }
       } catch (e) {
-        // 静默失败，保持空列表或仅显示历史
+        // 静默失败
       }
     };
     fetchHotWords();
   }, []);
 
-  // 点击外部关闭建议框 (作为 onMouseLeave 的补充兜底)
+  // 点击外部关闭建议框
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
@@ -70,10 +71,9 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
     e.preventDefault();
     if (searchValue.trim()) {
       saveHistory(searchValue.trim());
-      onSearch(searchValue.trim()); // App.tsx 默认会开启聚合搜索
+      onSearch(searchValue.trim());
       setView('SEARCH');
       setShowSuggestions(false);
-      // 失焦
       (document.activeElement as HTMLElement)?.blur();
     }
   };
@@ -86,23 +86,18 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
     setShowSuggestions(false);
   };
 
-  const handleSuggestionKeyDown = (e: React.KeyboardEvent, item: string) => {
-    if (e.key === 'Enter') {
-        handleSuggestionClick(item);
-    }
-  };
-
-  const clearHistory = (e: React.MouseEvent | React.KeyboardEvent) => {
+  const clearHistory = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSearchHistory([]);
     localStorage.removeItem('streamhub_search_history');
+    // Keep focus in input
+    searchContainerRef.current?.querySelector('input')?.focus();
   };
 
-  // 延时关闭逻辑
   const handleContainerLeave = () => {
     closeTimeoutRef.current = setTimeout(() => {
       setShowSuggestions(false);
-    }, 300); // 300ms 延迟，防止鼠标不小心滑出时立刻消失
+    }, 300);
   };
 
   const handleContainerEnter = () => {
@@ -112,14 +107,50 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
     }
   };
 
-  // 计算显示的列表：历史记录 + 热搜 (去重)
-  // 不进行输入联想/自动补齐，仅作为推荐列表
-  const displayList = useMemo(() => {
-      const history = searchHistory.slice(0, 5);
-      // 过滤掉已经在历史记录中的热词
-      const hot = hotSearchList.filter(t => !history.includes(t)).slice(0, 15);
-      return [...history, ...hot];
-  }, [searchHistory, hotSearchList]);
+  // --- Keyboard Navigation Logic ---
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const firstBtn = suggestionsRef.current?.querySelector('button.search-tag') as HTMLElement;
+          if (firstBtn) firstBtn.focus();
+      }
+  };
+
+  const handlePanelKeyDown = (e: React.KeyboardEvent) => {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+
+    const container = suggestionsRef.current;
+    if (!container) return;
+
+    const buttons = Array.from(container.querySelectorAll('button.search-tag')) as HTMLElement[];
+    const current = document.activeElement as HTMLElement;
+    const idx = buttons.indexOf(current);
+    
+    if (idx === -1) return;
+
+    // Responsive columns approximation (match grid-cols-2 sm:grid-cols-3)
+    const cols = window.innerWidth >= 640 ? 3 : 2;
+    
+    let nextIdx = idx;
+
+    if (e.key === 'ArrowRight') nextIdx = idx + 1;
+    else if (e.key === 'ArrowLeft') nextIdx = idx - 1;
+    else if (e.key === 'ArrowDown') nextIdx = idx + cols;
+    else if (e.key === 'ArrowUp') nextIdx = idx - cols;
+
+    // Boundary handling
+    if (nextIdx < 0) {
+        // Return to input
+        const input = searchContainerRef.current?.querySelector('input');
+        input?.focus();
+        return;
+    }
+
+    if (nextIdx >= buttons.length) nextIdx = buttons.length - 1;
+    if (buttons[nextIdx]) buttons[nextIdx].focus();
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow-sm transition-colors duration-300">
@@ -165,6 +196,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
                 onChange={(e) => setSearchValue(e.target.value)}
                 onFocus={() => { handleContainerEnter(); setShowSuggestions(true); }}
                 onClick={() => { handleContainerEnter(); setShowSuggestions(true); }}
+                onKeyDown={handleInputKeyDown}
               />
               {searchValue && (
                 <button 
@@ -177,35 +209,59 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
               )}
             </form>
 
-            {/* Search Suggestions Dropdown */}
-            {showSuggestions && displayList.length > 0 && (
-              <div ref={suggestionsRef} className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top">
+            {/* Search Suggestions Panel (New Design) */}
+            {showSuggestions && (
+              <div 
+                  ref={suggestionsRef} 
+                  className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top p-4"
+                  onKeyDown={handlePanelKeyDown}
+              >
+                 {/* History Section */}
                  {searchHistory.length > 0 && (
-                     <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-900/50 text-[10px] text-gray-500 border-b border-gray-100 dark:border-gray-700">
-                         <span>历史记录</span>
-                         <button 
-                             onClick={clearHistory}
-                             onKeyDown={(e) => e.key === 'Enter' && clearHistory(e)}
-                             tabIndex={0}
-                             className="hover:text-red-500 flex items-center gap-1 outline-none focus:ring-1 focus:ring-red-500 rounded px-1"
-                         >
-                            <Icon name="delete" className="text-xs" />清空
-                         </button>
+                     <div className="mb-4">
+                         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2 px-1">
+                             <span className="font-bold flex items-center gap-1"><Icon name="history" className="text-xs"/>搜索历史</span>
+                             <button onClick={clearHistory} className="hover:text-red-500 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><Icon name="delete" className="text-xs" /></button>
+                         </div>
+                         <div className="flex flex-wrap gap-2">
+                             {searchHistory.map((item, idx) => (
+                                 <button
+                                     key={`hist-${idx}`}
+                                     onClick={() => handleSuggestionClick(item)}
+                                     className="search-tag px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 text-gray-700 dark:text-gray-200 text-xs rounded-lg transition-colors truncate max-w-[150px] outline-none focus:ring-2 focus:ring-blue-500"
+                                 >
+                                     {item}
+                                 </button>
+                             ))}
+                         </div>
                      </div>
                  )}
-                 <div className="py-1 max-h-[60vh] overflow-y-auto">
-                     {displayList.map((item, idx) => (
-                         <div 
-                            key={idx}
-                            tabIndex={0}
-                            onClick={() => handleSuggestionClick(item)}
-                            onKeyDown={(e) => handleSuggestionKeyDown(e, item)}
-                            className="px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700 focus:bg-blue-100 dark:focus:bg-slate-700 outline-none cursor-pointer flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 transition-colors border-l-4 border-transparent focus:border-blue-500"
-                         >
-                            <Icon name={searchHistory.includes(item) ? "history" : "whatshot"} className={searchHistory.includes(item) ? "text-gray-400 text-base" : "text-red-500 text-base"} />
-                            <span className="truncate">{item}</span>
-                         </div>
-                     ))}
+                 
+                 {/* Hot Search Section */}
+                 <div>
+                     <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2 px-1 space-x-1">
+                         <Icon name="whatshot" className="text-xs text-red-500" />
+                         <span className="font-bold">热门搜索</span>
+                     </div>
+                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                         {hotSearchList.slice(0, 12).map((item, idx) => (
+                             <button
+                                 key={`hot-${idx}`}
+                                 onClick={() => handleSuggestionClick(item)}
+                                 className="search-tag px-2 py-2 bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 text-xs rounded-lg transition-colors truncate text-left flex items-center group outline-none focus:ring-2 focus:ring-blue-500 focus:bg-blue-50 dark:focus:bg-blue-900/30"
+                             >
+                                 <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] mr-2 font-bold flex-shrink-0 ${idx < 3 ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'}`}>
+                                     {idx + 1}
+                                 </span>
+                                 <span className="group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{item}</span>
+                             </button>
+                         ))}
+                         {hotSearchList.length === 0 && (
+                            <div className="col-span-full text-center text-gray-400 text-xs py-2">
+                                加载中...
+                            </div>
+                         )}
+                     </div>
                  </div>
               </div>
             )}
