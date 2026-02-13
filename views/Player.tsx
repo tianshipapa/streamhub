@@ -811,7 +811,36 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
         if (!artRef.current) return;
-        // 避免在输入框或按钮聚焦时触发
+        
+        const isFullscreen = artRef.current.fullscreen || artRef.current.fullscreenWeb;
+        
+        // Handle Enter for Fullscreen interactions (Wake up UI vs Action)
+        if (e.key === 'Enter') {
+             if (isFullscreen) {
+                 // Check visibility (Artplayer adds 'art-hover' when controls are shown)
+                 const isControlsVisible = artRef.current.template.$player.classList.contains('art-hover');
+                 
+                 if (!isControlsVisible) {
+                     // 1st Press: Wake up controls
+                     e.preventDefault();
+                     e.stopPropagation();
+                     artRef.current.template.$player.classList.add('art-hover');
+                     artRef.current.emit('mousemove'); // Reset auto-hide timer
+                     return;
+                 }
+                 
+                 // 2nd Press (or 1st if visible): Action
+                 const tagName = document.activeElement?.tagName?.toLowerCase();
+                 if (tagName !== 'button' && tagName !== 'input' && tagName !== 'textarea') {
+                     e.preventDefault();
+                     artRef.current.toggle();
+                 }
+                 // If button is focused, let default 'click' happen
+             }
+             return;
+        }
+
+        // For other keys, ignore if UI element is focused
         const tagName = document.activeElement?.tagName?.toLowerCase();
         if (tagName === 'input' || tagName === 'textarea' || tagName === 'button') return;
 
@@ -828,8 +857,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             artRef.current.toggle();
         }
     };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    
+    // Use capture to ensure we intercept 'Enter' before it triggers button clicks when controls are hidden
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
 
   useEffect(() => {
