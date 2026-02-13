@@ -249,6 +249,13 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const isFullscreenRef = useRef<boolean>(false);
   const isWebFullscreenRef = useRef<boolean>(false);
   const playbackRateRef = useRef<number>(1);
+  const brightnessRef = useRef<number>(1);
+  const swipeRef = useRef({
+      startX: 0,
+      startY: 0,
+      startVal: 0,
+      type: null as 'brightness' | 'volume' | null
+  });
   
   const playListRef = useRef<{name: string, url: string}[]>([]);
   const currentUrlRef = useRef<string>('');
@@ -401,7 +408,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   };
 
   const sortedAltSources = useMemo(() => {
-    return [...altSources].sort((a, b) => {
+    // 过滤掉没有结果的源 (empty)
+    const filtered = altSources.filter(s => s.status !== 'empty');
+    
+    return [...filtered].sort((a, b) => {
         // 成功的排前面
         if (a.status === 'success' && b.status !== 'success') return -1;
         if (a.status !== 'success' && b.status === 'success') return 1;
@@ -585,6 +595,61 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
     if (isWebFullscreenRef.current) art.fullscreenWeb = true;
     if (isFullscreenRef.current) art.fullscreen = true;
+
+    // Gesture Logic for Brightness and Volume
+    art.events.proxy(art.template.$container, 'touchstart', (e: TouchEvent) => {
+        if (!art.fullscreen && !art.fullscreenWeb) return;
+        if (e.touches.length !== 1) return;
+        
+        const { clientX, clientY } = e.touches[0];
+        const { width, height } = art.template.$container.getBoundingClientRect();
+        
+        // Ignore touches too close to edges (scurbbing bar is at bottom)
+        const EDGE_MARGIN = 50; 
+        if (clientY > height - EDGE_MARGIN) return; 
+        if (clientY < EDGE_MARGIN) return;
+
+        swipeRef.current.startX = clientX;
+        swipeRef.current.startY = clientY;
+        
+        if (clientX < width / 2) {
+            swipeRef.current.type = 'brightness';
+            swipeRef.current.startVal = brightnessRef.current;
+        } else {
+            swipeRef.current.type = 'volume';
+            swipeRef.current.startVal = art.volume;
+        }
+    });
+
+    art.events.proxy(art.template.$container, 'touchmove', (e: TouchEvent) => {
+        if (!swipeRef.current.type) return;
+        if (!art.fullscreen && !art.fullscreenWeb) return;
+        
+        e.preventDefault(); // Prevent scrolling
+        
+        const { clientY } = e.touches[0];
+        const deltaY = swipeRef.current.startY - clientY;
+        const { height } = art.template.$container.getBoundingClientRect();
+        
+        // Sensitivity: 1/2 screen height = full range (0-1)
+        const percent = deltaY / (height / 2);
+        
+        let newVal = swipeRef.current.startVal + percent;
+        newVal = Math.min(Math.max(newVal, 0), 1);
+        
+        if (swipeRef.current.type === 'brightness') {
+            brightnessRef.current = newVal;
+            art.video.style.filter = `brightness(${newVal})`;
+            art.notice.show = `亮度: ${Math.round(newVal * 100)}%`;
+        } else {
+            art.volume = newVal;
+            art.notice.show = `音量: ${Math.round(newVal * 100)}%`;
+        }
+    });
+
+    art.events.proxy(art.template.$container, 'touchend', () => {
+        swipeRef.current.type = null;
+    });
   };
 
   // 键盘导航逻辑
