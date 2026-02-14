@@ -1260,15 +1260,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
           <div className="grid grid-cols-5 gap-2">
             <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} buttonRef={(el) => controlButtonsRef.current[0] = el} onKeyDown={(e) => handleControlKeyDown(e, 0)} />
             <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} buttonRef={(el) => controlButtonsRef.current[1] = el} onKeyDown={(e) => handleControlKeyDown(e, 1)} />
-            <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
-            <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
-            <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
+            <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
+            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
+            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
             
             <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
             <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
-            <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
-            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
-            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
+            <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
+            <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
+            <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
           </div>
       </section>
 
