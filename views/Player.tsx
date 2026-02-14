@@ -872,6 +872,22 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     };
   }, [movieId]);
 
+  // 默认焦点优化：当控制栏加载完毕后，聚焦全屏按钮 (索引4)
+  useEffect(() => {
+    if (!loading && details) {
+        const timer = setTimeout(() => {
+             // 增加 activeElement 判断，防止用户已经操作后强行夺取焦点
+             if (document.activeElement && document.activeElement !== document.body) return;
+             
+             const fullscreenBtn = controlButtonsRef.current[4];
+             if (fullscreenBtn) {
+                 fullscreenBtn.focus();
+             }
+        }, 100);
+        return () => clearTimeout(timer);
+    }
+  }, [loading, details]);
+
   // 播放器核心加载逻辑
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
