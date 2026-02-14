@@ -49,15 +49,18 @@ const MobileNavButton = ({
   onClick, 
   icon, 
   label,
-  colorClass
+  colorClass,
+  buttonRef
 }: { 
   active: boolean; 
   onClick: () => void; 
   icon: string; 
   label: string;
   colorClass: string;
+  buttonRef?: React.RefObject<HTMLButtonElement>;
 }) => (
   <button 
+      ref={buttonRef}
       onClick={onClick}
       className={`flex flex-col items-center justify-center py-2.5 rounded-xl transition-all duration-300 border border-transparent ${active ? `${colorClass} shadow-sm border-gray-100 dark:border-gray-700` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
   >
@@ -113,6 +116,26 @@ const Home: React.FC<ExtendedHomeProps> = ({
   const [remoteBackupUrl, setRemoteBackupUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  // 焦点控制引用
+  const browseModeBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileBrowseBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    // 页面加载时默认聚焦“浏览片库”按钮，优化方向键操作体验
+    // 增加 activeElement 判断，防止用户已经操作后强行夺取焦点
+    const timer = setTimeout(() => {
+        if (document.activeElement && document.activeElement !== document.body) return;
+
+        // 优先聚焦桌面版按钮（如果可见），否则聚焦移动版按钮
+        if (browseModeBtnRef.current && browseModeBtnRef.current.offsetParent !== null) {
+            browseModeBtnRef.current.focus();
+        } else if (mobileBrowseBtnRef.current) {
+            mobileBrowseBtnRef.current.focus();
+        }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (mode === 'SOURCE') {
@@ -432,6 +455,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
                  icon="explore"
                  label="片库"
                  colorClass="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                 buttonRef={mobileBrowseBtnRef}
              />
              <MobileNavButton 
                  active={mode === 'DOUBAN'}
@@ -460,6 +484,7 @@ const Home: React.FC<ExtendedHomeProps> = ({
           <div className="hidden sm:flex bg-white dark:bg-slate-800 p-2 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar items-center">
              <div className="flex bg-gray-100 dark:bg-slate-900/50 p-1 rounded-xl w-full sm:w-auto">
                 <button 
+                    ref={browseModeBtnRef}
                     onClick={() => { setMode('SOURCE'); onStateUpdate({ isDoubanMode: false }); }}
                     className={`flex-shrink-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'SOURCE' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
                 >
