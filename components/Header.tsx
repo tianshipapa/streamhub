@@ -177,95 +177,97 @@ const Header: React.FC<HeaderProps> = ({ currentView, setView, onBack, onSearch 
             </h1>
           </div>
 
-          {/* Search Bar Section */}
-          <div 
-            className="flex-1 max-w-2xl mx-auto px-1 sm:px-0 relative" 
-            ref={searchContainerRef}
-            onMouseLeave={handleContainerLeave}
-            onMouseEnter={handleContainerEnter}
-          >
-            <form onSubmit={handleSearchSubmit} className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
-                <Icon name="search" className="text-gray-400 group-focus-within:text-blue-500 transition-colors text-lg sm:text-xl" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-full leading-5 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm transition-all duration-300 shadow-inner"
-                placeholder="搜索电影、剧集、动漫..."
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                onFocus={() => { handleContainerEnter(); setShowSuggestions(true); }}
-                onClick={() => { handleContainerEnter(); setShowSuggestions(true); }}
-                onKeyDown={handleInputKeyDown}
-              />
-              {searchValue && (
-                <button 
-                    type="button" 
-                    onClick={() => setSearchValue('')}
-                    className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                    <Icon name="close" className="text-sm" />
-                </button>
-              )}
-            </form>
+          {/* Search Bar Section - Hidden on PLAYER view */}
+          {currentView !== 'PLAYER' && (
+            <div 
+              className="flex-1 max-w-2xl mx-auto px-1 sm:px-0 relative" 
+              ref={searchContainerRef}
+              onMouseLeave={handleContainerLeave}
+              onMouseEnter={handleContainerEnter}
+            >
+              <form onSubmit={handleSearchSubmit} className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
+                  <Icon name="search" className="text-gray-400 group-focus-within:text-blue-500 transition-colors text-lg sm:text-xl" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-full leading-5 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm transition-all duration-300 shadow-inner"
+                  placeholder="搜索电影、剧集、动漫..."
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onFocus={() => { handleContainerEnter(); setShowSuggestions(true); }}
+                  onClick={() => { handleContainerEnter(); setShowSuggestions(true); }}
+                  onKeyDown={handleInputKeyDown}
+                />
+                {searchValue && (
+                  <button 
+                      type="button" 
+                      onClick={() => setSearchValue('')}
+                      className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  >
+                      <Icon name="close" className="text-sm" />
+                  </button>
+                )}
+              </form>
 
-            {/* Search Suggestions Panel (New Design) */}
-            {showSuggestions && (
-              <div 
-                  ref={suggestionsRef} 
-                  className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top p-4"
-                  onKeyDown={handlePanelKeyDown}
-              >
-                 {/* History Section */}
-                 {searchHistory.length > 0 && (
-                     <div className="mb-4">
-                         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2 px-1">
-                             <span className="font-bold flex items-center gap-1"><Icon name="history" className="text-xs"/>搜索历史</span>
-                             <button onClick={clearHistory} className="hover:text-red-500 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><Icon name="delete" className="text-xs" /></button>
-                         </div>
-                         <div className="flex flex-wrap gap-2">
-                             {searchHistory.map((item, idx) => (
-                                 <button
-                                     key={`hist-${idx}`}
-                                     onClick={() => handleSuggestionClick(item)}
-                                     className="search-tag px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 text-gray-700 dark:text-gray-200 text-xs rounded-lg transition-colors truncate max-w-[150px] outline-none focus:ring-2 focus:ring-blue-500"
-                                 >
-                                     {item}
-                                 </button>
-                             ))}
-                         </div>
-                     </div>
-                 )}
-                 
-                 {/* Hot Search Section */}
-                 <div>
-                     <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2 px-1 space-x-1">
-                         <Icon name="whatshot" className="text-xs text-red-500" />
-                         <span className="font-bold">热门搜索</span>
-                     </div>
-                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                         {hotSearchList.slice(0, 12).map((item, idx) => (
-                             <button
-                                 key={`hot-${idx}`}
-                                 onClick={() => handleSuggestionClick(item)}
-                                 className="search-tag px-2 py-2 bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 text-xs rounded-lg transition-colors truncate text-left flex items-center group outline-none focus:ring-2 focus:ring-blue-500 focus:bg-blue-50 dark:focus:bg-blue-900/30"
-                             >
-                                 <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] mr-2 font-bold flex-shrink-0 ${idx < 3 ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'}`}>
-                                     {idx + 1}
-                                 </span>
-                                 <span className="group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{item}</span>
-                             </button>
-                         ))}
-                         {hotSearchList.length === 0 && (
-                            <div className="col-span-full text-center text-gray-400 text-xs py-2">
-                                加载中...
-                            </div>
-                         )}
-                     </div>
-                 </div>
-              </div>
-            )}
-          </div>
+              {/* Search Suggestions Panel (New Design) */}
+              {showSuggestions && (
+                <div 
+                    ref={suggestionsRef} 
+                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fadeIn origin-top p-4"
+                    onKeyDown={handlePanelKeyDown}
+                >
+                   {/* History Section */}
+                   {searchHistory.length > 0 && (
+                       <div className="mb-4">
+                           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2 px-1">
+                               <span className="font-bold flex items-center gap-1"><Icon name="history" className="text-xs"/>搜索历史</span>
+                               <button onClick={clearHistory} className="hover:text-red-500 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><Icon name="delete" className="text-xs" /></button>
+                           </div>
+                           <div className="flex flex-wrap gap-2">
+                               {searchHistory.map((item, idx) => (
+                                   <button
+                                       key={`hist-${idx}`}
+                                       onClick={() => handleSuggestionClick(item)}
+                                       className="search-tag px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 text-gray-700 dark:text-gray-200 text-xs rounded-lg transition-colors truncate max-w-[150px] outline-none focus:ring-2 focus:ring-blue-500"
+                                   >
+                                       {item}
+                                   </button>
+                               ))}
+                           </div>
+                       </div>
+                   )}
+                   
+                   {/* Hot Search Section */}
+                   <div>
+                       <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2 px-1 space-x-1">
+                           <Icon name="whatshot" className="text-xs text-red-500" />
+                           <span className="font-bold">热门搜索</span>
+                       </div>
+                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                           {hotSearchList.slice(0, 12).map((item, idx) => (
+                               <button
+                                   key={`hot-${idx}`}
+                                   onClick={() => handleSuggestionClick(item)}
+                                   className="search-tag px-2 py-2 bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 text-xs rounded-lg transition-colors truncate text-left flex items-center group outline-none focus:ring-2 focus:ring-blue-500 focus:bg-blue-50 dark:focus:bg-blue-900/30"
+                               >
+                                   <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] mr-2 font-bold flex-shrink-0 ${idx < 3 ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'}`}>
+                                       {idx + 1}
+                                   </span>
+                                   <span className="group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{item}</span>
+                               </button>
+                           ))}
+                           {hotSearchList.length === 0 && (
+                              <div className="col-span-full text-center text-gray-400 text-xs py-2">
+                                  加载中...
+                              </div>
+                           )}
+                       </div>
+                   </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Actions Section */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
