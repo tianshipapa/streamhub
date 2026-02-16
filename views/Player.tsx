@@ -108,7 +108,6 @@ const fetchAndCleanM3u8 = async (url: string, depth = 0): Promise<{ content: str
         
         let dominantFp = '', maxC = 0;
         for(const [fp, c] of Object.entries(fingerprintCounts)) { if(c > maxC) { maxC = c; dominantFp = fp; } }
-        // 只有当主要分片占比小于 40% 时才认为可能是混合流，否则不轻易清洗，避免误杀
         if(segments.length === 0 || (maxC / segments.length) < 0.4) return { content: originalContent, removedCount: 0, log: '未清洗' };
 
         const linesToRemove = new Set<number>();
@@ -204,7 +203,7 @@ const ControlButton: React.FC<{
         ref={buttonRef}
         onClick={onClick}
         onKeyDown={onKeyDown}
-        className={`flex flex-col items-center justify-center p-1.5 sm:px-3 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none w-full h-full ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'} ${className}`}
+        className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all border focus:ring-2 focus:ring-blue-400 focus:outline-none w-full h-full ${active ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600'} ${className}`}
         tabIndex={0}
     >
         <Icon name={icon} className="text-xl sm:text-base mb-0.5" />
@@ -218,27 +217,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [cleanStatus, setCleanStatus] = useState<string>('');
-  const [playerRatio, setPlayerRatio] = useState<number>(56.25);
   const [isFavorited, setIsFavorited] = useState(false);
   const accConfig = useMemo(() => getAccelerationConfig(), []);
   const [isTempAccelerationEnabled, setIsTempAccelerationEnabled] = useState(false);
   
-  // 选集分组状态
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
-  
-  // 分享状态
   const [showShareModal, setShowShareModal] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-
-  // 切源状态
   const [showSourceSelector, setShowSourceSelector] = useState(false);
   const [altSources, setAltSources] = useState<AltSourceStatus[]>([]);
   const [hasStartedSearch, setHasStartedSearch] = useState(false);
-
-  // 描述展开状态
   const [isDescExpanded, setIsDescExpanded] = useState(false);
-
-  // 去广告开关，默认开启
   const [enableAdBlock, setEnableAdBlock] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -262,12 +251,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const skipConfigRef = useRef<SkipConfig>({ intro: 0, outroOffset: 0 });
   const episodeLayerRef = useRef<HTMLElement | null>(null);
 
-  // 控制按钮引用
   const controlButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteButtonRef = useRef<HTMLButtonElement>(null);
-  
-  // 新增引用
   const accButtonRef = useRef<HTMLButtonElement>(null);
   const sourceListRef = useRef<HTMLDivElement>(null);
 
@@ -279,7 +265,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     currentUrlRef.current = currentUrl;
   }, [currentUrl]);
 
-  // 更新播放器内部选集层
   useEffect(() => {
     const updateLayer = () => {
          const html = generateEpisodeLayerHtml(playList, currentUrl, currentSectionIndex);
@@ -293,7 +278,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     updateLayer();
   }, [playList, currentUrl, currentSectionIndex]);
 
-  // 计算选集分组
   const episodeSections = useMemo(() => {
     if (playList.length <= EPISODES_PER_SECTION) return [];
     const sections = [];
@@ -307,7 +291,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   const effectiveAccEnabled = useMemo(() => accConfig.enabled || isTempAccelerationEnabled, [accConfig.enabled, isTempAccelerationEnabled]);
 
-  // 自动跳转到当前集所在分组
   useEffect(() => {
     if (playList.length > EPISODES_PER_SECTION && currentUrl) {
         const idx = playList.findIndex(ep => ep.url === currentUrl);
@@ -328,11 +311,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     const loadDetails = async () => {
       if (!currentSource.api) return;
       setLoading(true);
-      setPlayerRatio(56.25);
       hasAppliedHistorySeek.current = false; 
       setIsFavorited(isFavorite(movieId));
       skipConfigRef.current = getSkipConfig(movieId);
-      setAltSources([]); // 重置切源列表
+      setAltSources([]);
       setHasStartedSearch(false);
 
       const historyItem = getMovieProgress(movieId);
@@ -360,23 +342,17 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     if (movieId) loadDetails();
   }, [movieId, currentSource.api]);
 
-  // 触发切源搜索
   const startAltSearch = () => {
       if (!details) return;
       setHasStartedSearch(true);
-      
       const others = sources.filter(s => s.api !== currentSource.api);
-      
-      // 更新为搜索状态
       setAltSources(others.map(s => ({ source: s, status: 'searching' })));
 
-      // 并发请求
       others.forEach(async (source) => {
         const start = Date.now();
         try {
             const res = await searchVideos(source.api, details.title);
             const latency = Date.now() - start;
-            // 简单匹配逻辑
             const match = res.find(m => m.title === details.title) || res.find(m => m.title.includes(details.title));
             
             setAltSources(prev => prev.map(item => {
@@ -401,24 +377,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     });
   };
 
-  // 初始化切源列表并自动开始搜索
   const handleCheckSources = () => {
       setShowSourceSelector(true);
       startAltSearch();
   };
 
   const sortedAltSources = useMemo(() => {
-    // 过滤掉没有结果的源 (empty)
     const filtered = altSources.filter(s => s.status !== 'empty');
-    
     return [...filtered].sort((a, b) => {
-        // 成功的排前面
         if (a.status === 'success' && b.status !== 'success') return -1;
         if (a.status !== 'success' && b.status === 'success') return 1;
-        // 然后是搜索中
         if (a.status === 'searching' && b.status !== 'searching') return -1;
         if (a.status !== 'searching' && b.status === 'searching') return 1;
-        // 成功的按延迟排序
         if (a.status === 'success' && b.status === 'success') {
             return (a.latency || 0) - (b.latency || 0);
         }
@@ -596,7 +566,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     if (isWebFullscreenRef.current) art.fullscreenWeb = true;
     if (isFullscreenRef.current) art.fullscreen = true;
 
-    // Gesture Logic for Brightness and Volume
     art.events.proxy(art.template.$container, 'touchstart', (e: TouchEvent) => {
         if (!art.fullscreen && !art.fullscreenWeb) return;
         if (e.touches.length !== 1) return;
@@ -604,7 +573,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         const { clientX, clientY } = e.touches[0];
         const { width, height } = art.template.$container.getBoundingClientRect();
         
-        // Ignore touches too close to edges (scurbbing bar is at bottom)
         const EDGE_MARGIN = 50; 
         if (clientY > height - EDGE_MARGIN) return; 
         if (clientY < EDGE_MARGIN) return;
@@ -625,13 +593,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         if (!swipeRef.current.type) return;
         if (!art.fullscreen && !art.fullscreenWeb) return;
         
-        e.preventDefault(); // Prevent scrolling
+        e.preventDefault(); 
         
         const { clientY } = e.touches[0];
         const deltaY = swipeRef.current.startY - clientY;
         const { height } = art.template.$container.getBoundingClientRect();
         
-        // Sensitivity: 1/2 screen height = full range (0-1)
         const percent = deltaY / (height / 2);
         
         let newVal = swipeRef.current.startVal + percent;
@@ -652,21 +619,14 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     });
   };
 
-  // 键盘导航逻辑
   const handleControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    // 阻止事件冒泡，防止触发全局键盘监听（如快进/快退）
-    // 但如果有处理了跳转，我们也阻止默认行为
-    // e.stopPropagation(); 
-    
     let handled = false;
     switch(e.key) {
         case 'ArrowRight':
             if (index % 5 < 4) {
-                // Not the last in row
                 controlButtonsRef.current[index + 1]?.focus();
                 handled = true;
             } else {
-                // Right edge -> Try to Go to Episode List
                 const activeEp = document.querySelector('.art-ep-item.active') as HTMLElement;
                 const firstEp = document.querySelector('.art-ep-item') as HTMLElement;
                 if (activeEp || firstEp) {
@@ -686,8 +646,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 controlButtonsRef.current[index + 5]?.focus();
                 handled = true;
             } else {
-                // Bottom row -> Go to Share button
-                shareButtonRef.current?.focus();
+                const shareBtn = shareButtonRef.current;
+                if(shareBtn) shareBtn.focus();
                 handled = true;
             }
             break;
@@ -696,9 +656,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                 controlButtonsRef.current[index - 5]?.focus();
                 handled = true;
             } else {
-                 // Top row -> Go to Header Back button
                  const backBtn = document.querySelector('header button[title="返回上一页"]') as HTMLElement || 
-                                 document.querySelector('header .group') as HTMLElement; // Try back button first, then logo
+                                 document.querySelector('header .group') as HTMLElement; 
                  if (backBtn) {
                      backBtn.focus();
                      handled = true;
@@ -716,7 +675,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const handleShareKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowUp') {
         e.preventDefault();
-        controlButtonsRef.current[5]?.focus(); // Go to "Start" (Intro) button
+        controlButtonsRef.current[5]?.focus(); 
     } else if (e.key === 'ArrowRight') {
          e.preventDefault();
          favoriteButtonRef.current?.focus();
@@ -726,12 +685,11 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const handleFavoriteKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowUp') {
          e.preventDefault();
-         controlButtonsRef.current[6]?.focus(); // Go to "End" (Outro) button
+         controlButtonsRef.current[6]?.focus(); 
     } else if (e.key === 'ArrowLeft') {
          e.preventDefault();
          shareButtonRef.current?.focus();
     } else if (e.key === 'ArrowRight') {
-        // Go to episodes
         e.preventDefault();
         const activeEp = document.querySelector('.art-ep-item.active') as HTMLElement;
         const firstEp = document.querySelector('.art-ep-item') as HTMLElement;
@@ -739,22 +697,18 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   };
 
-  // Acceleration Button Keyboard Logic
   const handleAccButtonKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
         e.preventDefault();
-        // Try focus section tabs first
         const firstSection = document.querySelector('.bg-white .flex.space-x-2 button') as HTMLElement;
         if (firstSection) {
             firstSection.focus();
             return;
         }
-        // Else focus first episode
         const firstEp = document.querySelector('.bg-white .art-ep-list .art-ep-item') as HTMLElement;
         if (firstEp) firstEp.focus();
     } else if (e.key === 'ArrowLeft') {
          e.preventDefault();
-         // Focus header back button or top right control
          const backBtn = document.querySelector('header button[title="返回上一页"]') as HTMLElement;
          if (backBtn) backBtn.focus();
     }
@@ -773,7 +727,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   const handleEpisodeItemKeyDown = (e: React.KeyboardEvent, index: number) => {
       if (e.key === 'ArrowUp') {
-          // If in first row (approx < 5 items), go to Sections or Acc Button
           if (index < 5) {
                e.preventDefault();
                if (episodeSections.length > 0) {
@@ -787,18 +740,14 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       }
   };
 
-  // Auto-focus source list when modal opens with results
   useEffect(() => {
     if (showSourceSelector && sortedAltSources.length > 0) {
         const active = document.activeElement;
-        // Only hijack focus if it's not already inside the list container
         if (sourceListRef.current && !sourceListRef.current.contains(active)) {
-             // Find first non-disabled button (status != searching)
              setTimeout(() => {
                  const firstBtn = sourceListRef.current?.querySelector('button:not([disabled])') as HTMLElement;
                  if (firstBtn) firstBtn.focus();
                  else {
-                     // Fallback to close button if list isn't ready
                      const closeBtn = document.querySelector('.fixed .p-4 button') as HTMLElement;
                      if (closeBtn) closeBtn.focus();
                  }
@@ -807,40 +756,33 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   }, [showSourceSelector, sortedAltSources]);
 
-  // 遥控器/键盘全局监听
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
         if (!artRef.current) return;
         
         const isFullscreen = artRef.current.fullscreen || artRef.current.fullscreenWeb;
         
-        // Handle Enter for Fullscreen interactions (Wake up UI vs Action)
         if (e.key === 'Enter') {
              if (isFullscreen) {
-                 // Check visibility (Artplayer adds 'art-hover' when controls are shown)
                  const isControlsVisible = artRef.current.template.$player.classList.contains('art-hover');
                  
                  if (!isControlsVisible) {
-                     // 1st Press: Wake up controls
                      e.preventDefault();
                      e.stopPropagation();
                      artRef.current.template.$player.classList.add('art-hover');
-                     artRef.current.emit('mousemove'); // Reset auto-hide timer
+                     artRef.current.emit('mousemove');
                      return;
                  }
                  
-                 // 2nd Press (or 1st if visible): Action
                  const tagName = document.activeElement?.tagName?.toLowerCase();
                  if (tagName !== 'button' && tagName !== 'input' && tagName !== 'textarea') {
                      e.preventDefault();
                      artRef.current.toggle();
                  }
-                 // If button is focused, let default 'click' happen
              }
              return;
         }
 
-        // For other keys, ignore if UI element is focused
         const tagName = document.activeElement?.tagName?.toLowerCase();
         if (tagName === 'input' || tagName === 'textarea' || tagName === 'button') return;
 
@@ -858,7 +800,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         }
     };
     
-    // Use capture to ensure we intercept 'Enter' before it triggers button clicks when controls are hidden
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
@@ -872,11 +813,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     };
   }, [movieId]);
 
-  // 默认焦点优化：当控制栏加载完毕后，聚焦全屏按钮 (索引4)
   useEffect(() => {
     if (!loading && details) {
         const timer = setTimeout(() => {
-             // 增加 activeElement 判断，防止用户已经操作后强行夺取焦点
              if (document.activeElement && document.activeElement !== document.body) return;
              
              const fullscreenBtn = controlButtonsRef.current[4];
@@ -888,7 +827,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   }, [loading, details]);
 
-  // 播放器核心加载逻辑
   useEffect(() => {
     if (!currentUrl || !containerRef.current) return;
     let cleanTimeoutId: any = null;
@@ -904,7 +842,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             finalUrl = `${prefix}/${currentUrl}`;
         }
 
-        // 仅在 enableAdBlock 为真时执行去广告逻辑
         if (enableAdBlock && currentUrl.includes('.m3u8')) {
             try {
                 setCleanStatus('流处理中...');
@@ -1141,9 +1078,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   if (!details) return <div className="text-center py-20 text-red-500 font-bold">内容加载失败</div>;
 
   return (
-    <main className="container mx-auto px-4 py-6 space-y-8 animate-fadeIn relative">
+    <div className="animate-fadeIn w-full flex flex-col">
        <style>{`
-        /* ... existing styles ... */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
@@ -1265,128 +1201,137 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         </div>
       )}
 
-      {/* 视频容器 */}
-      <section className="relative w-full rounded-2xl overflow-hidden shadow-2xl bg-black" style={{ paddingBottom: `${playerRatio}%` }}>
-         <div ref={containerRef} className="absolute top-0 right-0 bottom-0 left-0 w-full h-full"></div>
-         {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
-      </section>
-
-      {/* 播放控制栏：改为所有屏幕统一 5列网格布局，确保2行显示 */}
-      <section className="bg-gray-50 dark:bg-slate-800 p-2 sm:p-3 rounded-2xl border border-gray-100 dark:border-gray-700">
-          <div className="grid grid-cols-5 gap-2">
-            <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} buttonRef={(el) => controlButtonsRef.current[0] = el} onKeyDown={(e) => handleControlKeyDown(e, 0)} />
-            <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} buttonRef={(el) => controlButtonsRef.current[1] = el} onKeyDown={(e) => handleControlKeyDown(e, 1)} />
-            <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
-            <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
-            <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
-            
-            <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
-            <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
-            <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
-            <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
-            <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
+      {/* 首屏容器：包含播放器和控制栏，铺满屏幕剩余高度 */}
+      <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-black relative">
+          
+          {/* 视频容器 (自适应高度) */}
+          <div className="flex-1 relative w-full overflow-hidden">
+             <div ref={containerRef} className="absolute inset-0 w-full h-full"></div>
+             {cleanStatus && <div className="absolute top-4 left-4 z-50 pointer-events-none"><div className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-[10px] backdrop-blur-md flex items-center space-x-2"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span><span>{cleanStatus}</span></div></div>}
           </div>
-      </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-6">
-             {/* 标题区域 */}
-             <div className="flex flex-col sm:flex-row sm:items-end justify-between space-y-4 sm:space-y-0">
-                <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{details.title}</h1>
-                    <div className="flex flex-wrap text-xs text-gray-500 dark:text-gray-400 items-center space-x-3">
-                        <span className="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">{details.genre}</span>
-                        <span>{details.year}</span><span>{details.badge}</span>
-                        <span className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">当前源: {currentSource.name}</span>
+          {/* 播放控制栏 (固定在底部) */}
+          <div className="flex-shrink-0 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-gray-700 z-10 relative">
+              <div className="max-w-7xl mx-auto px-2 py-2 sm:px-4 sm:py-3 w-full">
+                  <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                    <ControlButton icon="skip_previous" text="上一集" onClick={handlePrevEpisode} buttonRef={(el) => controlButtonsRef.current[0] = el} onKeyDown={(e) => handleControlKeyDown(e, 0)} />
+                    <ControlButton icon="skip_next" text="下一集" onClick={handleNextEpisode} buttonRef={(el) => controlButtonsRef.current[1] = el} onKeyDown={(e) => handleControlKeyDown(e, 1)} />
+                    <ControlButton icon="wifi_tethering" text="切源" onClick={handleCheckSources} buttonRef={(el) => controlButtonsRef.current[2] = el} onKeyDown={(e) => handleControlKeyDown(e, 2)} />
+                    <ControlButton icon="speed" text="倍速" onClick={handleCycleSpeed} buttonRef={(el) => controlButtonsRef.current[3] = el} onKeyDown={(e) => handleControlKeyDown(e, 3)} />
+                    <ControlButton icon="fullscreen" text="全屏" onClick={handleToggleFullscreen} buttonRef={(el) => controlButtonsRef.current[4] = el} onKeyDown={(e) => handleControlKeyDown(e, 4)} />
+                    
+                    <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
+                    <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
+                    <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
+                    <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
+                    <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      {/* 下方滚动内容区域 */}
+      <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-6">
+                 {/* 标题区域 */}
+                 <div className="flex flex-col sm:flex-row sm:items-end justify-between space-y-4 sm:space-y-0">
+                    <div className="flex-1">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{details.title}</h1>
+                        <div className="flex flex-wrap text-xs text-gray-500 dark:text-gray-400 items-center space-x-3">
+                            <span className="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">{details.genre}</span>
+                            <span>{details.year}</span><span>{details.badge}</span>
+                            <span className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">当前源: {currentSource.name}</span>
+                        </div>
                     </div>
-                </div>
-                <div className="flex space-x-2">
-                    <button 
-                        ref={shareButtonRef}
-                        onClick={handleShare} 
-                        onKeyDown={handleShareKeyDown}
-                        className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                    >
-                        <Icon name="share" className="text-lg" /><span>分享</span>
-                    </button>
-                    <button 
-                        ref={favoriteButtonRef}
-                        onClick={handleFavoriteToggle} 
-                        onKeyDown={handleFavoriteKeyDown}
-                        className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}
-                    >
-                        <Icon name={isFavorited ? "bookmark" : "bookmark_border"} className="text-lg" />
-                        <span>{isFavorited ? '已收藏' : '收藏'}</span>
-                    </button>
-                </div>
-             </div>
-             
-             {/* 简介卡片 */}
-             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center space-x-2"><Icon name="description" className="text-blue-500 text-lg" /> <span>剧情简介</span></h3>
-                <div 
-                    onClick={() => setIsDescExpanded(!isDescExpanded)}
-                    className={`text-xs leading-relaxed text-gray-500 dark:text-gray-400 cursor-pointer transition-all ${isDescExpanded ? '' : 'line-clamp-3'}`}
-                >
-                    {details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}
-                </div>
-                <div className="text-center mt-2">
-                    <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="text-blue-500 text-[10px] hover:underline flex items-center justify-center w-full">
-                        <Icon name={isDescExpanded ? "expand_less" : "expand_more"} />
-                    </button>
-                </div>
-             </div>
-        </div>
-
-        {/* 右侧选集列表 */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
-                    <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
-                </h3>
-                <button 
-                    ref={accButtonRef}
-                    onKeyDown={handleAccButtonKeyDown}
-                    onClick={toggleTempAcceleration} 
-                    className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}
-                >
-                    <Icon name="bolt" className="text-xs" />
-                    <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
-                </button>
-            </div>
-            <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
-            {episodeSections.length > 0 && (
-                <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
-                    {episodeSections.map((sec, idx) => (
+                    <div className="flex space-x-2">
                         <button 
-                            key={idx} 
-                            onClick={() => setCurrentSectionIndex(idx)} 
-                            onKeyDown={handleSectionTabKeyDown}
-                            className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
+                            ref={shareButtonRef}
+                            onClick={handleShare} 
+                            onKeyDown={handleShareKeyDown}
+                            className="flex items-center space-x-1.5 px-4 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm transition-colors border border-transparent font-medium focus:ring-2 focus:ring-blue-400 focus:outline-none"
                         >
-                            {sec.label}
+                            <Icon name="share" className="text-lg" /><span>分享</span>
+                        </button>
+                        <button 
+                            ref={favoriteButtonRef}
+                            onClick={handleFavoriteToggle} 
+                            onKeyDown={handleFavoriteKeyDown}
+                            className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm transition-all border font-bold shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none ${isFavorited ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 border-pink-200 dark:border-pink-800' : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'}`}
+                        >
+                            <Icon name={isFavorited ? "bookmark" : "bookmark_border"} className="text-lg" />
+                            <span>{isFavorited ? '已收藏' : '收藏'}</span>
+                        </button>
+                    </div>
+                 </div>
+                 
+                 {/* 简介卡片 */}
+                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                    <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center space-x-2"><Icon name="description" className="text-blue-500 text-lg" /> <span>剧情简介</span></h3>
+                    <div 
+                        onClick={() => setIsDescExpanded(!isDescExpanded)}
+                        className={`text-xs leading-relaxed text-gray-500 dark:text-gray-400 cursor-pointer transition-all ${isDescExpanded ? '' : 'line-clamp-3'}`}
+                    >
+                        {details.vod_content ? details.vod_content.replace(/<[^>]*>?/gm, '') : '暂无详细介绍'}
+                    </div>
+                    <div className="text-center mt-2">
+                        <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="text-blue-500 text-[10px] hover:underline flex items-center justify-center w-full">
+                            <Icon name={isDescExpanded ? "expand_less" : "expand_more"} />
+                        </button>
+                    </div>
+                 </div>
+            </div>
+
+            {/* 右侧选集列表 */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
+                        <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
+                    </h3>
+                    <button 
+                        ref={accButtonRef}
+                        onKeyDown={handleAccButtonKeyDown}
+                        onClick={toggleTempAcceleration} 
+                        className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}
+                    >
+                        <Icon name="bolt" className="text-xs" />
+                        <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
+                    </button>
+                </div>
+                <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
+                {episodeSections.length > 0 && (
+                    <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
+                        {episodeSections.map((sec, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => setCurrentSectionIndex(idx)} 
+                                onKeyDown={handleSectionTabKeyDown}
+                                className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
+                            >
+                                {sec.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                <div className="art-ep-list custom-scrollbar">
+                    {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
+                        <button 
+                            key={index} 
+                            onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} 
+                            onKeyDown={(e) => handleEpisodeItemKeyDown(e, index)}
+                            className={`art-ep-item outline-none focus:ring-2 focus:ring-blue-400 ${currentUrl === ep.url ? 'active' : ''}`}
+                        >
+                            {ep.name}
                         </button>
                     ))}
                 </div>
-            )}
-            <div className="art-ep-list custom-scrollbar">
-                {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
-                    <button 
-                        key={index} 
-                        onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} 
-                        onKeyDown={(e) => handleEpisodeItemKeyDown(e, index)}
-                        className={`art-ep-item outline-none focus:ring-2 focus:ring-blue-400 ${currentUrl === ep.url ? 'active' : ''}`}
-                    >
-                        {ep.name}
-                    </button>
-                ))}
             </div>
         </div>
-      </section>
+      </div>
 
       {/* 切源模态框 (懒加载) */}
       {showSourceSelector && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowSourceSelector(false)}>
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowSourceSelector(false)}>
               <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
                   <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                       <h3 className="font-bold text-lg dark:text-white">全网切源 - {details?.title}</h3>
@@ -1429,7 +1374,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
               </div>
           </div>
       )}
-    </main>
+    </div>
   );
 };
 
