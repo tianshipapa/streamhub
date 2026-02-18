@@ -211,6 +211,8 @@ const ControlButton: React.FC<{
     </button>
 );
 
+type UpscaleLevel = 'off' | 'low' | 'medium' | 'high';
+
 const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, sources, onSelectMovie }) => {
   const [details, setDetails] = useState<Movie | null>(null);
   const [playList, setPlayList] = useState<{name: string, url: string}[]>([]);
@@ -229,6 +231,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [hasStartedSearch, setHasStartedSearch] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [enableAdBlock, setEnableAdBlock] = useState(true);
+  const [upscaleLevel, setUpscaleLevel] = useState<UpscaleLevel>('low');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -316,6 +319,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       skipConfigRef.current = getSkipConfig(movieId);
       setAltSources([]);
       setHasStartedSearch(false);
+      setUpscaleLevel('low'); // 重置画质增强为弱
 
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem?.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
@@ -483,20 +487,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
   };
 
-  const handleForward15 = () => {
-    if (artRef.current) {
-        artRef.current.currentTime = Math.min(artRef.current.currentTime + 15, artRef.current.duration);
-        safeShowNotice('快进 15s');
-    }
-  };
-
-  const handleBackward15 = () => {
-    if (artRef.current) {
-        artRef.current.currentTime = Math.max(artRef.current.currentTime - 15, 0);
-        safeShowNotice('快退 15s');
-    }
-  };
-
   const toggleAdBlock = () => {
       const newState = !enableAdBlock;
       setEnableAdBlock(newState);
@@ -550,6 +540,41 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       if(!artRef.current) return;
       artRef.current.fullscreen = !artRef.current.fullscreen;
   };
+  
+  const cycleUpscale = () => {
+      const levels: UpscaleLevel[] = ['off', 'low', 'medium', 'high'];
+      const nextIndex = (levels.indexOf(upscaleLevel) + 1) % levels.length;
+      const nextLevel = levels[nextIndex];
+      setUpscaleLevel(nextLevel);
+
+      if (artRef.current && artRef.current.video) {
+          // 清除所有可能存在的等级类名
+          artRef.current.video.classList.remove('anime4k-low', 'anime4k-medium', 'anime4k-high');
+          
+          if (nextLevel !== 'off') {
+              artRef.current.video.classList.add(`anime4k-${nextLevel}`);
+          }
+          
+          const labelMap = { off: '关闭', low: '弱', medium: '中', high: '强' };
+          safeShowNotice(`画质增强: ${labelMap[nextLevel]}`);
+      }
+  };
+
+  const getUpscaleLabel = () => {
+      switch(upscaleLevel) {
+          case 'low': return '画质:弱';
+          case 'medium': return '画质:中';
+          case 'high': return '画质:强';
+          default: return '画质';
+      }
+  };
+
+  const handleScreenshot = () => {
+      if (artRef.current) {
+          artRef.current.screenshot();
+          safeShowNotice('已截图');
+      }
+  };
 
   const handleVideoReady = (art: any) => {
     if (historyTimeRef.current > 5 && !hasAppliedHistorySeek.current) {
@@ -565,6 +590,12 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
     }
     if (isWebFullscreenRef.current) art.fullscreenWeb = true;
     if (isFullscreenRef.current) art.fullscreen = true;
+    
+    // 应用当前画质增强状态
+    art.video.classList.remove('anime4k-low', 'anime4k-medium', 'anime4k-high');
+    if (upscaleLevel !== 'off') {
+        art.video.classList.add(`anime4k-${upscaleLevel}`);
+    }
 
     art.events.proxy(art.template.$container, 'touchstart', (e: TouchEvent) => {
         if (!art.fullscreen && !art.fullscreenWeb) return;
@@ -1079,6 +1110,36 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
   return (
     <div className="animate-fadeIn w-full flex flex-col">
+       {/* 注入多级 SVG 滤镜定义 */}
+       <svg width="0" height="0" style={{position: 'absolute', pointerEvents: 'none', opacity: 0}}>
+         <defs>
+           {/* 弱：轻微锐化，适合大部分场景 */}
+           <filter id="anime4k-low">
+             <feConvolveMatrix
+               order="3"
+               kernelMatrix="0 -0.5 0 -0.5 3 -0.5 0 -0.5 0"
+               edgeMode="duplicate"
+             />
+           </filter>
+           {/* 中：标准锐化，适合720P以下 */}
+           <filter id="anime4k-medium">
+             <feConvolveMatrix
+               order="3"
+               kernelMatrix="0 -1 0 -1 5 -1 0 -1 0"
+               edgeMode="duplicate"
+             />
+           </filter>
+           {/* 强：强力锐化，包括对角线 */}
+           <filter id="anime4k-high">
+             <feConvolveMatrix
+               order="3"
+               kernelMatrix="-0.5 -1 -0.5 -1 7 -1 -0.5 -1 -0.5"
+               edgeMode="duplicate"
+             />
+           </filter>
+         </defs>
+       </svg>
+
        <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -1086,6 +1147,20 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
         
         .art-control-volume { display: none !important; }
+
+        /* Anime4K 多级滤镜效果 */
+        .anime4k-low {
+            filter: url(#anime4k-low) contrast(1.05) saturate(1.1) brightness(1.02) !important;
+            transition: filter 0.3s ease;
+        }
+        .anime4k-medium {
+            filter: url(#anime4k-medium) contrast(1.1) saturate(1.15) brightness(1.05) !important;
+            transition: filter 0.3s ease;
+        }
+        .anime4k-high {
+            filter: url(#anime4k-high) contrast(1.2) saturate(1.25) brightness(1.08) !important;
+            transition: filter 0.3s ease;
+        }
 
         .art-loading-custom, .art-buffering-animation {
             position: relative;
@@ -1095,6 +1170,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             align-items: center;
             justify-content: center;
         }
+        /* ... existing styles ... */
         .ring-glow {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -1222,8 +1298,24 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                     
                     <ControlButton icon="start" text="片头" onClick={handleSetIntro} buttonRef={(el) => controlButtonsRef.current[5] = el} onKeyDown={(e) => handleControlKeyDown(e, 5)} />
                     <ControlButton icon="last_page" text="片尾" onClick={handleSetOutro} buttonRef={(el) => controlButtonsRef.current[6] = el} onKeyDown={(e) => handleControlKeyDown(e, 6)} />
-                    <ControlButton icon="fast_rewind" text="快退" onClick={handleBackward15} buttonRef={(el) => controlButtonsRef.current[7] = el} onKeyDown={(e) => handleControlKeyDown(e, 7)} />
-                    <ControlButton icon="fast_forward" text="快进" onClick={handleForward15} buttonRef={(el) => controlButtonsRef.current[8] = el} onKeyDown={(e) => handleControlKeyDown(e, 8)} />
+                    
+                    {/* 支持三级调节的画质增强按钮 */}
+                    <ControlButton 
+                        icon="auto_fix_high" 
+                        text={getUpscaleLabel()} 
+                        onClick={cycleUpscale} 
+                        active={upscaleLevel !== 'off'}
+                        buttonRef={(el) => controlButtonsRef.current[7] = el} 
+                        onKeyDown={(e) => handleControlKeyDown(e, 7)} 
+                    />
+                    <ControlButton 
+                        icon="camera_alt" 
+                        text="截图" 
+                        onClick={handleScreenshot} 
+                        buttonRef={(el) => controlButtonsRef.current[8] = el} 
+                        onKeyDown={(e) => handleControlKeyDown(e, 8)} 
+                    />
+                    
                     <ControlButton icon="cleaning_services" text="去广告" onClick={toggleAdBlock} active={enableAdBlock} buttonRef={(el) => controlButtonsRef.current[9] = el} onKeyDown={(e) => handleControlKeyDown(e, 9)} />
                   </div>
               </div>
