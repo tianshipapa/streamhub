@@ -1317,6 +1317,51 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       {/* 下方滚动内容区域 */}
       <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* 选集列表 (Moved to top) */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
+                        <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
+                    </h3>
+                    <button 
+                        ref={accButtonRef}
+                        onKeyDown={handleAccButtonKeyDown}
+                        onClick={toggleTempAcceleration} 
+                        className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}
+                    >
+                        <Icon name="bolt" className="text-xs" />
+                        <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
+                    </button>
+                </div>
+                <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
+                {episodeSections.length > 0 && (
+                    <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
+                        {episodeSections.map((sec, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => setCurrentSectionIndex(idx)} 
+                                onKeyDown={handleSectionTabKeyDown}
+                                className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
+                            >
+                                {sec.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                <div className="art-ep-list custom-scrollbar">
+                    {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
+                        <button 
+                            key={index} 
+                            onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} 
+                            onKeyDown={(e) => handleEpisodeItemKeyDown(e, index)}
+                            className={`art-ep-item outline-none focus:ring-2 focus:ring-blue-400 ${currentUrl === ep.url ? 'active' : ''}`}
+                        >
+                            {ep.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             <div className="md:col-span-2 space-y-6">
                  {/* 标题区域 */}
                  <div className="flex flex-col sm:flex-row sm:items-end justify-between space-y-4 sm:space-y-0">
@@ -1364,51 +1409,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         </button>
                     </div>
                  </div>
-            </div>
-
-            {/* 右侧选集列表 */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 flex flex-col shadow-sm h-[500px] max-h-[80vh]">
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                    <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center space-x-2">
-                        <Icon name="playlist_play" className="text-blue-500 text-lg" /> <span>选集列表</span>
-                    </h3>
-                    <button 
-                        ref={accButtonRef}
-                        onKeyDown={handleAccButtonKeyDown}
-                        onClick={toggleTempAcceleration} 
-                        className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${effectiveAccEnabled ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 border-gray-200 dark:border-gray-600'}`}
-                    >
-                        <Icon name="bolt" className="text-xs" />
-                        <span>{effectiveAccEnabled ? '加速已开启' : '点击加速'}</span>
-                    </button>
-                </div>
-                <p className="text-[9px] text-gray-400 mb-4 flex-shrink-0">{playList.length} 个视频内容</p>
-                {episodeSections.length > 0 && (
-                    <div className="flex space-x-2 overflow-x-auto pb-3 mb-3 hide-scrollbar flex-shrink-0">
-                        {episodeSections.map((sec, idx) => (
-                            <button 
-                                key={idx} 
-                                onClick={() => setCurrentSectionIndex(idx)} 
-                                onKeyDown={handleSectionTabKeyDown}
-                                className={`flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold transition-all border outline-none focus:ring-2 focus:ring-blue-400 ${currentSectionIndex === idx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-gray-700 text-gray-500'}`}
-                            >
-                                {sec.label}
-                            </button>
-                        ))}
-                    </div>
-                )}
-                <div className="art-ep-list custom-scrollbar">
-                    {playList.slice(episodeSections.length > 0 ? episodeSections[currentSectionIndex].startIdx : 0, episodeSections.length > 0 ? episodeSections[currentSectionIndex].endIdx : playList.length).map((ep, index) => (
-                        <button 
-                            key={index} 
-                            onClick={() => { if (currentUrl === ep.url) return; historyTimeRef.current = 0; hasAppliedHistorySeek.current = true; setCurrentUrl(ep.url); }} 
-                            onKeyDown={(e) => handleEpisodeItemKeyDown(e, index)}
-                            className={`art-ep-item outline-none focus:ring-2 focus:ring-blue-400 ${currentUrl === ep.url ? 'active' : ''}`}
-                        >
-                            {ep.name}
-                        </button>
-                    ))}
-                </div>
             </div>
         </div>
       </div>
