@@ -211,7 +211,7 @@ const ControlButton: React.FC<{
     </button>
 );
 
-type UpscaleLevel = 'off' | 'low' | 'medium' | 'high';
+type UpscaleLevel = 'off' | 'low';
 
 const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, sources, onSelectMovie }) => {
   const [details, setDetails] = useState<Movie | null>(null);
@@ -231,7 +231,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [hasStartedSearch, setHasStartedSearch] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [enableAdBlock, setEnableAdBlock] = useState(true);
-  const [upscaleLevel, setUpscaleLevel] = useState<UpscaleLevel>('low');
+  const [upscaleLevel, setUpscaleLevel] = useState<UpscaleLevel>('off');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -319,7 +319,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       skipConfigRef.current = getSkipConfig(movieId);
       setAltSources([]);
       setHasStartedSearch(false);
-      setUpscaleLevel('low'); // 重置画质增强为弱
+      setUpscaleLevel('off'); // 重置画质增强为关闭
 
       const historyItem = getMovieProgress(movieId);
       historyTimeRef.current = (historyItem?.currentTime && historyItem.currentTime > 5) ? historyItem.currentTime : 0;
@@ -542,31 +542,23 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   };
   
   const cycleUpscale = () => {
-      const levels: UpscaleLevel[] = ['off', 'low', 'medium', 'high'];
-      const nextIndex = (levels.indexOf(upscaleLevel) + 1) % levels.length;
-      const nextLevel = levels[nextIndex];
+      const nextLevel = upscaleLevel === 'off' ? 'low' : 'off';
       setUpscaleLevel(nextLevel);
 
       if (artRef.current && artRef.current.video) {
           // 清除所有可能存在的等级类名
           artRef.current.video.classList.remove('anime4k-low', 'anime4k-medium', 'anime4k-high');
           
-          if (nextLevel !== 'off') {
-              artRef.current.video.classList.add(`anime4k-${nextLevel}`);
+          if (nextLevel === 'low') {
+              artRef.current.video.classList.add('anime4k-low');
           }
           
-          const labelMap = { off: '关闭', low: '弱', medium: '中', high: '强' };
-          safeShowNotice(`画质增强: ${labelMap[nextLevel]}`);
+          safeShowNotice(nextLevel === 'low' ? '画质增强' : '关闭');
       }
   };
 
   const getUpscaleLabel = () => {
-      switch(upscaleLevel) {
-          case 'low': return '画质:弱';
-          case 'medium': return '画质:中';
-          case 'high': return '画质:强';
-          default: return '画质';
-      }
+      return upscaleLevel === 'low' ? '画质增强' : '画质';
   };
 
   const handleScreenshot = () => {
