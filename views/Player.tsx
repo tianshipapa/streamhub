@@ -615,33 +615,10 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
               }
           };
           
-          copyToClipboard(downloadUrl);
-          safeShowNotice('下载链接已复制');
-
           // 唤起失败，显示下载提示
-          if (confirm(`未检测到 Web Video Caster。\n手机浏览器使用电脑ua模式下载。\n${downloadUrl}\n\n是否前往下载？`)) {
-              try {
-                  // 尝试本地模拟 PC UA (尽力而为)
-                  const pcUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-                  // @ts-ignore
-                  if (Object.getOwnPropertyDescriptor(navigator, 'userAgent')?.configurable) {
-                      // @ts-ignore
-                      Object.defineProperty(navigator, 'userAgent', {
-                          get: () => pcUA,
-                          configurable: true
-                      });
-                  }
-              } catch (e) {}
-              
-              window.open(downloadUrl, '_blank');
-              
-              // 恢复 (虽然新窗口已经打开，但保持环境清洁)
-              setTimeout(() => {
-                  try {
-                       // @ts-ignore
-                       delete navigator.userAgent; 
-                  } catch(e) {}
-              }, 500);
+          if (confirm(`未检测到 Web Video Caster。\n手机浏览器使用电脑ua模式下载。\n${downloadUrl}\n\n点击确定复制下载链接`)) {
+              copyToClipboard(downloadUrl);
+              safeShowNotice('已复制链接，请在浏览器里粘贴使用。');
           }
       }, 2000);
 
