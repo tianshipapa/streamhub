@@ -232,6 +232,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [enableAdBlock, setEnableAdBlock] = useState(true);
   const [upscaleLevel, setUpscaleLevel] = useState<UpscaleLevel>('off');
+  const [showCastModal, setShowCastModal] = useState(false);
+  const [castSearching, setCastSearching] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -561,11 +563,23 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       return upscaleLevel === 'low' ? '画质增强' : '画质';
   };
 
-  const handleScreenshot = () => {
-      if (artRef.current) {
-          artRef.current.screenshot();
-          safeShowNotice('已截图');
-      }
+  const handleCast = () => {
+      setShowCastModal(true);
+      setCastSearching(true);
+      // 模拟搜索延迟
+      setTimeout(() => setCastSearching(false), 1500);
+  };
+
+  const launchWVC = () => {
+      if (!currentUrl) return;
+      const title = details?.title || '视频';
+      const poster = details?.image || '';
+      // Web Video Caster URL Scheme
+      const wvcUrl = `wvc-x-callback://open?url=${encodeURIComponent(currentUrl)}&title=${encodeURIComponent(title)}&poster=${encodeURIComponent(poster)}&secure_uri=true`;
+      
+      window.location.href = wvcUrl;
+      safeShowNotice('正在唤起 Web Video Caster...');
+      setShowCastModal(false);
   };
 
   const handleVideoReady = (art: any) => {
@@ -1269,6 +1283,62 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         </div>
       )}
 
+      {/* 投屏模态框 */}
+      {showCastModal && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:px-4">
+          <div className="absolute top-0 right-0 bottom-0 left-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCastModal(false)}></div>
+          <div className="relative bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl border-t sm:border border-gray-200 dark:border-gray-700 animate-fadeIn">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+                    <Icon name="cast" className="text-blue-500" /><span>选择投屏设备</span>
+                </h3>
+                <button onClick={() => setShowCastModal(false)} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                    <Icon name="close" className="text-gray-500" />
+                </button>
+            </div>
+            
+            <div className="space-y-4 min-h-[200px]">
+                {castSearching ? (
+                    <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                        <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">正在搜索可投屏设备...</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3 animate-fadeIn">
+                        <div className="text-xs text-gray-400 px-1">已发现设备</div>
+                        <button 
+                            onClick={launchWVC}
+                            className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all group"
+                        >
+                            <div className="flex items-center space-x-4">
+                                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                                    <Icon name="rss_feed" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Web Video Caster</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">推荐 - 支持多协议投屏</div>
+                                </div>
+                            </div>
+                            <Icon name="chevron_right" className="text-gray-400 group-hover:text-blue-500" />
+                        </button>
+                        
+                        <div className="mt-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+                            <h4 className="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center">
+                                <Icon name="help_outline" className="text-sm mr-1" /> 投屏帮助
+                            </h4>
+                            <ul className="text-[10px] text-blue-600/80 dark:text-blue-400/80 space-y-1 list-disc list-inside">
+                                <li>请确保手机和电视连接同一 WiFi</li>
+                                <li>推荐安装 Web Video Caster 以获得最佳体验</li>
+                                <li>如无法搜索到设备，请尝试重启应用</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 首屏容器：包含播放器和控制栏，铺满屏幕剩余高度 */}
       <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-black relative">
           
@@ -1301,9 +1371,9 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         onKeyDown={(e) => handleControlKeyDown(e, 7)} 
                     />
                     <ControlButton 
-                        icon="camera_alt" 
-                        text="截图" 
-                        onClick={handleScreenshot} 
+                        icon="cast" 
+                        text="投屏" 
+                        onClick={handleCast} 
                         buttonRef={(el) => controlButtonsRef.current[8] = el} 
                         onKeyDown={(e) => handleControlKeyDown(e, 8)} 
                     />
