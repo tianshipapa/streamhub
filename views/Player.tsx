@@ -570,6 +570,26 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       setTimeout(() => setCastSearching(false), 1500);
   };
 
+  const handleAirPlay = () => {
+      if (artRef.current && artRef.current.video && artRef.current.video.webkitShowPlaybackTargetPicker) {
+          artRef.current.video.webkitShowPlaybackTargetPicker();
+      } else {
+          safeShowNotice('您的设备不支持原生 AirPlay，请尝试 Web Video Caster');
+      }
+      setShowCastModal(false);
+  };
+
+  const handleSystemCast = () => {
+      if (artRef.current && artRef.current.video && artRef.current.video.remote) {
+          artRef.current.video.remote.prompt().catch(() => {
+              safeShowNotice('无法唤起系统投屏，请尝试其他方式');
+          });
+      } else {
+          safeShowNotice('当前浏览器不支持标准投屏 API');
+      }
+      setShowCastModal(false);
+  };
+
   const launchWVC = () => {
       if (!currentUrl) return;
       const title = details?.title || '视频';
@@ -1300,37 +1320,76 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
             <div className="space-y-4 min-h-[200px]">
                 {castSearching ? (
                     <div className="flex flex-col items-center justify-center py-10 space-y-4">
-                        <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">正在搜索可投屏设备...</p>
+                        <div className="relative">
+                            <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                            <Icon name="radar" className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-500 text-lg" />
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">正在搜索局域网设备 (DLNA/AirPlay)...</p>
                     </div>
                 ) : (
                     <div className="space-y-3 animate-fadeIn">
-                        <div className="text-xs text-gray-400 px-1">已发现设备</div>
+                        <div className="text-xs text-gray-400 px-1">选择投屏方式</div>
+                        
+                        {/* Web Video Caster - DLNA/Chromecast 神器 */}
                         <button 
                             onClick={launchWVC}
-                            className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all group"
+                            className="w-full flex items-center justify-between p-4 rounded-xl bg-orange-50 dark:bg-orange-900/10 hover:bg-orange-100 dark:hover:bg-orange-900/20 border border-orange-100 dark:border-orange-800/30 transition-all group"
                         >
                             <div className="flex items-center space-x-4">
                                 <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
                                     <Icon name="rss_feed" />
                                 </div>
                                 <div className="text-left">
-                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Web Video Caster</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">推荐 - 支持多协议投屏</div>
+                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400">Web Video Caster</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">推荐 - 完美支持 DLNA / TV / 盒子</div>
+                                </div>
+                            </div>
+                            <Icon name="chevron_right" className="text-gray-400 group-hover:text-orange-500" />
+                        </button>
+
+                        {/* AirPlay - Apple 专用 */}
+                        <button 
+                            onClick={handleAirPlay}
+                            className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all group"
+                        >
+                            <div className="flex items-center space-x-4">
+                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300">
+                                    <Icon name="airplay" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">AirPlay 投屏</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">适用于 iPhone / iPad / Mac / Apple TV</div>
+                                </div>
+                            </div>
+                            <Icon name="chevron_right" className="text-gray-400 group-hover:text-blue-500" />
+                        </button>
+
+                        {/* System Cast - Android/Chrome */}
+                        <button 
+                            onClick={handleSystemCast}
+                            className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all group"
+                        >
+                            <div className="flex items-center space-x-4">
+                                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                    <Icon name="cast" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">系统 / 浏览器投屏</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">适用于 Android / Chrome / 智能电视</div>
                                 </div>
                             </div>
                             <Icon name="chevron_right" className="text-gray-400 group-hover:text-blue-500" />
                         </button>
                         
-                        <div className="mt-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
-                            <h4 className="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center">
-                                <Icon name="help_outline" className="text-sm mr-1" /> 投屏帮助
+                        <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+                            <h4 className="text-[10px] font-bold text-blue-700 dark:text-blue-400 mb-1 flex items-center">
+                                <Icon name="info" className="text-xs mr-1" /> 投屏指南
                             </h4>
-                            <ul className="text-[10px] text-blue-600/80 dark:text-blue-400/80 space-y-1 list-disc list-inside">
-                                <li>请确保手机和电视连接同一 WiFi</li>
-                                <li>推荐安装 Web Video Caster 以获得最佳体验</li>
-                                <li>如无法搜索到设备，请尝试重启应用</li>
-                            </ul>
+                            <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
+                                1. 投屏前请确保手机和电视连接同一 WiFi。<br/>
+                                2. DLNA 协议请优先使用 Web Video Caster。<br/>
+                                3. 苹果设备请使用 AirPlay，安卓设备尝试系统投屏。
+                            </p>
                         </div>
                     </div>
                 )}
