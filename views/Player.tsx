@@ -593,11 +593,55 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       // 检测是否唤起成功 (仅针对 Android/PC，iOS 通常会弹窗提示)
       // 如果 2秒内页面没有隐藏 (即没有跳转到 APP)，则认为唤起失败
       setTimeout(() => {
+          // @ts-ignore
           if (document.hidden || document.webkitHidden) return;
           
+          const downloadUrl = 'https://chenhua.lanzouu.com/izfyF3ixvlhe';
+          
+          // 尝试复制链接到剪贴板
+          const copyToClipboard = (text: string) => {
+              if (navigator.clipboard && window.isSecureContext) {
+                  navigator.clipboard.writeText(text).catch(() => {});
+              } else {
+                  const textArea = document.createElement("textarea");
+                  textArea.value = text;
+                  textArea.style.position = "fixed";
+                  textArea.style.left = "-9999px";
+                  document.body.appendChild(textArea);
+                  textArea.focus();
+                  textArea.select();
+                  try { document.execCommand('copy'); } catch (err) {}
+                  document.body.removeChild(textArea);
+              }
+          };
+          
+          copyToClipboard(downloadUrl);
+          safeShowNotice('下载链接已复制');
+
           // 唤起失败，显示下载提示
-          if (confirm('未检测到 Web Video Caster，是否前往下载？\n(手机浏览器请使用电脑UA模式下载)')) {
-              window.open('https://chenhua.lanzouu.com/izfyF3ixvlhe', '_blank');
+          if (confirm(`未检测到 Web Video Caster。\n手机浏览器使用电脑ua模式下载。\n${downloadUrl}\n\n是否前往下载？`)) {
+              try {
+                  // 尝试本地模拟 PC UA (尽力而为)
+                  const pcUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+                  // @ts-ignore
+                  if (Object.getOwnPropertyDescriptor(navigator, 'userAgent')?.configurable) {
+                      // @ts-ignore
+                      Object.defineProperty(navigator, 'userAgent', {
+                          get: () => pcUA,
+                          configurable: true
+                      });
+                  }
+              } catch (e) {}
+              
+              window.open(downloadUrl, '_blank');
+              
+              // 恢复 (虽然新窗口已经打开，但保持环境清洁)
+              setTimeout(() => {
+                  try {
+                       // @ts-ignore
+                       delete navigator.userAgent; 
+                  } catch(e) {}
+              }, 500);
           }
       }, 2000);
 
