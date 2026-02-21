@@ -579,17 +579,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       setShowCastModal(false);
   };
 
-  const handleSystemCast = () => {
-      if (artRef.current && artRef.current.video && artRef.current.video.remote) {
-          artRef.current.video.remote.prompt().catch(() => {
-              safeShowNotice('无法唤起系统投屏，请尝试其他方式');
-          });
-      } else {
-          safeShowNotice('当前浏览器不支持标准投屏 API');
-      }
-      setShowCastModal(false);
-  };
-
   const launchWVC = () => {
       if (!currentUrl) return;
       const title = details?.title || '视频';
@@ -597,7 +586,21 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
       // Web Video Caster URL Scheme
       const wvcUrl = `wvc-x-callback://open?url=${encodeURIComponent(currentUrl)}&title=${encodeURIComponent(title)}&poster=${encodeURIComponent(poster)}&secure_uri=true`;
       
+      // 尝试唤起
+      const start = Date.now();
       window.location.href = wvcUrl;
+      
+      // 检测是否唤起成功 (仅针对 Android/PC，iOS 通常会弹窗提示)
+      // 如果 2秒内页面没有隐藏 (即没有跳转到 APP)，则认为唤起失败
+      setTimeout(() => {
+          if (document.hidden || document.webkitHidden) return;
+          
+          // 唤起失败，显示下载提示
+          if (confirm('未检测到 Web Video Caster，是否前往下载？\n(手机浏览器请使用电脑UA模式下载)')) {
+              window.open('https://chenhua.lanzouu.com/izfyF3ixvlhe', '_blank');
+          }
+      }, 2000);
+
       safeShowNotice('正在唤起 Web Video Caster...');
       setShowCastModal(false);
   };
@@ -1363,23 +1366,6 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                             </div>
                             <Icon name="chevron_right" className="text-gray-400 group-hover:text-blue-500" />
                         </button>
-
-                        {/* System Cast - Android/Chrome */}
-                        <button 
-                            onClick={handleSystemCast}
-                            className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all group"
-                        >
-                            <div className="flex items-center space-x-4">
-                                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                    <Icon name="cast" />
-                                </div>
-                                <div className="text-left">
-                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">系统 / 浏览器投屏</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">适用于 Android / Chrome / 智能电视</div>
-                                </div>
-                            </div>
-                            <Icon name="chevron_right" className="text-gray-400 group-hover:text-blue-500" />
-                        </button>
                         
                         <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
                             <h4 className="text-[10px] font-bold text-blue-700 dark:text-blue-400 mb-1 flex items-center">
@@ -1387,8 +1373,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                             </h4>
                             <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
                                 1. 投屏前请确保手机和电视连接同一 WiFi。<br/>
-                                2. DLNA 协议请优先使用 Web Video Caster。<br/>
-                                3. 苹果设备请使用 AirPlay，安卓设备尝试系统投屏。
+                                2. 安卓设备请优先使用 Web Video Caster。<br/>
+                                3. 苹果设备请使用 AirPlay 选项。
                             </p>
                         </div>
                     </div>
