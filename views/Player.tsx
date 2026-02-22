@@ -234,6 +234,7 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
   const [upscaleLevel, setUpscaleLevel] = useState<UpscaleLevel>('off');
   const [showCastModal, setShowCastModal] = useState(false);
   const [castSearching, setCastSearching] = useState(false);
+  const [showWVCInstallModal, setShowWVCInstallModal] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const artRef = useRef<any>(null);
@@ -596,34 +597,36 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
           // @ts-ignore
           if (document.hidden || document.webkitHidden) return;
           
-          const downloadUrl = 'https://chenhua.lanzouu.com/izfyF3ixvlhe';
-          
-          // 尝试复制链接到剪贴板
-          const copyToClipboard = (text: string) => {
-              if (navigator.clipboard && window.isSecureContext) {
-                  navigator.clipboard.writeText(text).catch(() => {});
-              } else {
-                  const textArea = document.createElement("textarea");
-                  textArea.value = text;
-                  textArea.style.position = "fixed";
-                  textArea.style.left = "-9999px";
-                  document.body.appendChild(textArea);
-                  textArea.focus();
-                  textArea.select();
-                  try { document.execCommand('copy'); } catch (err) {}
-                  document.body.removeChild(textArea);
-              }
-          };
-          
-          // 唤起失败，显示下载提示
-          if (confirm(`未检测到 Web Video Caster。\n手机浏览器使用电脑ua模式下载。\n${downloadUrl}\n\n点击确定复制下载链接`)) {
-              copyToClipboard(downloadUrl);
-              safeShowNotice('已复制链接，请在浏览器里粘贴使用。');
-          }
+          // 唤起失败，显示下载提示模态框
+          setShowWVCInstallModal(true);
       }, 2000);
 
       safeShowNotice('正在唤起 Web Video Caster...');
       setShowCastModal(false);
+  };
+
+  const handleCopyWVCUrl = async () => {
+      const downloadUrl = 'https://chenhua.lanzouu.com/izfyF3ixvlhe';
+      try {
+          if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(downloadUrl);
+          } else {
+              const textArea = document.createElement("textarea");
+              textArea.value = downloadUrl;
+              textArea.style.position = "fixed";
+              textArea.style.left = "-9999px";
+              document.body.appendChild(textArea);
+              textArea.focus();
+              textArea.select();
+              document.execCommand('copy');
+              textArea.remove();
+          }
+          safeShowNotice('已复制链接，请在浏览器里粘贴使用。');
+          setShowWVCInstallModal(false);
+      } catch (err) {
+          console.error('Copy failed', err);
+          safeShowNotice('复制失败，请手动复制');
+      }
   };
 
   const handleVideoReady = (art: any) => {
@@ -1400,6 +1403,41 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
                         </div>
                     </div>
                 )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WVC 安装提示模态框 */}
+      {showWVCInstallModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWVCInstallModal(false)}></div>
+          <div className="relative bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 animate-fadeIn">
+            <div className="text-center space-y-4">
+                <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto text-orange-600 dark:text-orange-400">
+                    <Icon name="priority_high" className="text-2xl" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">未检测到 Web Video Caster</h3>
+                <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                    <p>手机浏览器请使用电脑UA模式下载。</p>
+                    <p className="font-mono text-xs bg-gray-100 dark:bg-slate-900 p-2 rounded break-all select-all">
+                        https://chenhua.lanzouu.com/izfyF3ixvlhe
+                    </p>
+                </div>
+                <div className="flex space-x-3 pt-2">
+                    <button 
+                        onClick={() => setShowWVCInstallModal(false)}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        onClick={handleCopyWVCUrl}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+                    >
+                        复制链接
+                    </button>
+                </div>
             </div>
           </div>
         </div>
