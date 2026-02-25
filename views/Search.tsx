@@ -242,11 +242,11 @@ const Search: React.FC<SearchProps> = ({
              <div className="flex flex-wrap items-center space-x-6 py-2">
                  {/* 来源筛选 (如果开启了聚合) */}
                  <div className="relative group">
-                     <button className="flex items-center space-x-1 text-sm text-gray-500 hover:text-white transition-colors py-2">
+                     <button tabIndex={-1} className="flex items-center space-x-1 text-sm text-gray-500 hover:text-white transition-colors py-2">
                          来源 <Icon name="expand_more" className="text-sm" />
                      </button>
                      {/* 来源下拉 */}
-                     <div className="absolute top-full left-0 pt-2 w-64 z-20 hidden group-hover:block">
+                     <div className="absolute top-full left-0 pt-2 w-64 z-50 hidden group-hover:block">
                         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-xl">
                             <div className="text-xs text-gray-400 mb-2 flex justify-between items-center">
                                 <span>已选中 {savedState.selectedSourceApis.size} 个源</span>
@@ -275,8 +275,8 @@ const Search: React.FC<SearchProps> = ({
                  </div>
 
                  {/* 年份筛选 */}
-                 <div className="relative z-20" onMouseEnter={() => setShowYearMenu(true)} onMouseLeave={() => setShowYearMenu(false)}>
-                     <button className={`flex items-center space-x-1 text-sm transition-colors py-2 ${yearFilter !== 'all' ? 'text-green-500 font-bold' : 'text-gray-500 hover:text-white'}`}>
+                 <div className="relative z-50" onMouseEnter={() => setShowYearMenu(true)} onMouseLeave={() => setShowYearMenu(false)}>
+                     <button tabIndex={-1} className={`flex items-center space-x-1 text-sm transition-colors py-2 ${yearFilter !== 'all' ? 'text-green-500 font-bold' : 'text-gray-500 hover:text-white'}`}>
                          {yearFilter === 'all' ? '年份' : yearFilter === 'unknown' ? '未知年份' : yearFilter} 
                          <Icon name="expand_more" className="text-sm" />
                      </button>
@@ -285,6 +285,7 @@ const Search: React.FC<SearchProps> = ({
                          <div className="absolute top-full left-0 pt-2 w-[420px] animate-fadeIn origin-top-left">
                              <div className="bg-[#1a1d26] border border-gray-700 rounded-xl p-4 shadow-2xl grid grid-cols-6 gap-2">
                                 <button 
+                                    tabIndex={-1}
                                     onClick={() => { setYearFilter('all'); setShowYearMenu(false); }}
                                     className={`col-span-1 px-1 py-1.5 rounded text-[11px] text-center border transition-all ${yearFilter === 'all' ? 'bg-green-600 border-green-600 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:bg-gray-800'}`}
                                 >
@@ -293,6 +294,7 @@ const Search: React.FC<SearchProps> = ({
                                 {availableYears.map(y => (
                                     <button 
                                         key={y}
+                                        tabIndex={-1}
                                         onClick={() => { setYearFilter(y); setShowYearMenu(false); }}
                                         className={`col-span-1 px-1 py-1.5 rounded text-[11px] text-center border transition-all ${yearFilter === y ? 'bg-green-600 border-green-600 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:bg-gray-800'}`}
                                     >
@@ -300,6 +302,7 @@ const Search: React.FC<SearchProps> = ({
                                     </button>
                                 ))}
                                 <button 
+                                    tabIndex={-1}
                                     onClick={() => { setYearFilter('unknown'); setShowYearMenu(false); }}
                                     className={`col-span-1 px-1 py-1.5 rounded text-[11px] text-center border transition-all ${yearFilter === 'unknown' ? 'bg-green-600 border-green-600 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:bg-gray-800'}`}
                                 >
@@ -312,6 +315,7 @@ const Search: React.FC<SearchProps> = ({
 
                  {/* 年份排序 */}
                  <button 
+                    tabIndex={-1}
                     onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
                     className="flex items-center space-x-1 text-sm text-green-500 hover:text-green-400 transition-colors ml-2"
                  >
