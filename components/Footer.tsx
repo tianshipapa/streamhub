@@ -16,18 +16,18 @@ const Footer: React.FC<FooterProps> = ({ currentView }) => {
              <span className="font-semibold text-gray-900 dark:text-white">StreamHub</span>
            </div>
         ) : (
-           <p className="text-sm text-gray-500 dark:text-gray-400">© 2025 {currentView === 'SEARCH' ? 'VideoHub' : 'StreamHub'}. 保留所有权利。</p>
+           <p className="text-sm text-gray-500 dark:text-gray-400">©  {currentView === 'SEARCH' ? 'VideoHub' : 'StreamHub'}. 保留所有权利。</p>
         )}
         
         {currentView === 'PLAYER' ? (
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            © 2025 StreamHub Inc. 版权所有。
+            ©  StreamHub Inc. 版权所有。
           </div>
         ) : (
           <div className="flex space-x-6 text-sm text-gray-500 dark:text-gray-400">
-            <a href="#" className="hover:text-blue-600 transition-colors">隐私政策</a>
-            <a href="#" className="hover:text-blue-600 transition-colors">服务条款</a>
-            <a href="#" className="hover:text-blue-600 transition-colors">帮助中心</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">欢迎使用</a>
+            <a href="#" className="hover:text-blue-600 transition-colors">保持低调</a>
+            <a href="https://cfkua.wokaotianshi.eu.org/https://raw.githubusercontent.com/wokaotianshi123/streamhub/refs/heads/main/steamhub4.0latest.apk" className="hover:text-blue-600 transition-colors">下载apk</a>
           </div>
         )}
 
