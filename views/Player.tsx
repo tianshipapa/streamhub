@@ -1166,29 +1166,25 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
        {/* 注入多级 SVG 滤镜定义 */}
        <svg width="0" height="0" style={{position: 'absolute', pointerEvents: 'none', opacity: 0}}>
          <defs>
-           {/* 弱：轻微锐化，适合大部分场景 */}
-           <filter id="anime4k-low">
-             <feConvolveMatrix
-               order="3"
-               kernelMatrix="0 -0.5 0 -0.5 3 -0.5 0 -0.5 0"
-               edgeMode="duplicate"
-             />
+           {/* 弱：平衡去噪 + 适度锐化 */}
+           <filter id="anime4k-low" x="-20%" y="-20%" width="140%" height="140%">
+             <feGaussianBlur in="SourceGraphic" stdDeviation="0.4" result="denoised"/>
+             <feGaussianBlur in="denoised" stdDeviation="1.5" result="unsharp_mask"/>
+             <feComposite in="denoised" in2="unsharp_mask" operator="arithmetic" k2="2.0" k3="-1.0" result="sharpened"/>
            </filter>
-           {/* 中：标准锐化，适合720P以下 */}
-           <filter id="anime4k-medium">
-             <feConvolveMatrix
-               order="3"
-               kernelMatrix="0 -1 0 -1 5 -1 0 -1 0"
-               edgeMode="duplicate"
-             />
+           
+           {/* 中：强力去噪 + 明显锐化 */}
+           <filter id="anime4k-medium" x="-20%" y="-20%" width="140%" height="140%">
+             <feGaussianBlur in="SourceGraphic" stdDeviation="0.7" result="denoised"/>
+             <feGaussianBlur in="denoised" stdDeviation="2.5" result="unsharp_mask"/>
+             <feComposite in="denoised" in2="unsharp_mask" operator="arithmetic" k2="2.8" k3="-1.8" result="sharpened"/>
            </filter>
-           {/* 强：强力锐化，包括对角线 */}
-           <filter id="anime4k-high">
-             <feConvolveMatrix
-               order="3"
-               kernelMatrix="-0.5 -1 -0.5 -1 7 -1 -0.5 -1 -0.5"
-               edgeMode="duplicate"
-             />
+           
+           {/* 强：深度去噪 + 激进锐化 */}
+           <filter id="anime4k-high" x="-20%" y="-20%" width="140%" height="140%">
+             <feGaussianBlur in="SourceGraphic" stdDeviation="1.0" result="denoised"/>
+             <feGaussianBlur in="denoised" stdDeviation="4.0" result="unsharp_mask"/>
+             <feComposite in="denoised" in2="unsharp_mask" operator="arithmetic" k2="3.8" k3="-2.8" result="sharpened"/>
            </filter>
          </defs>
        </svg>
@@ -1203,15 +1199,15 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
 
         /* Anime4K 多级滤镜效果 */
         .anime4k-low {
-            filter: url(#anime4k-low) contrast(1.05) saturate(1.1) brightness(1.02) !important;
+            filter: url(#anime4k-low) !important;
             transition: filter 0.3s ease;
         }
         .anime4k-medium {
-            filter: url(#anime4k-medium) contrast(1.1) saturate(1.15) brightness(1.05) !important;
+            filter: url(#anime4k-medium) !important;
             transition: filter 0.3s ease;
         }
         .anime4k-high {
-            filter: url(#anime4k-high) contrast(1.2) saturate(1.25) brightness(1.08) !important;
+            filter: url(#anime4k-high) !important;
             transition: filter 0.3s ease;
         }
 
