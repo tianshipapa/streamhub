@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ViewState } from '../types';
 import { Icon } from './Icon';
 
@@ -7,6 +7,21 @@ interface FooterProps {
 }
 
 const Footer: React.FC<FooterProps> = ({ currentView }) => {
+  const linksRef = useRef<(HTMLAnchorElement | null)[]>([]);
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const totalLinks = 3;
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const nextIndex = (index + 1) % totalLinks;
+      linksRef.current[nextIndex]?.focus();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prevIndex = (index - 1 + totalLinks) % totalLinks;
+      linksRef.current[prevIndex]?.focus();
+    }
+  };
+
   return (
     <footer className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700 py-8 mt-auto transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -25,9 +40,24 @@ const Footer: React.FC<FooterProps> = ({ currentView }) => {
           </div>
         ) : (
           <div className="flex space-x-6 text-sm text-gray-500 dark:text-gray-400">
-            <a href="#" className="hover:text-blue-600 transition-colors">欢迎使用</a>
-            <a href="#" className="hover:text-blue-600 transition-colors">保持低调</a>
-            <a href="https://cfkua.wokaotianshi.eu.org/https://raw.githubusercontent.com/wokaotianshi123/streamhub/refs/heads/main/steamhub4.0latest.apk" className="hover:text-blue-600 transition-colors">下载apk</a>
+            <a 
+                href="#" 
+                className="hover:text-blue-600 transition-colors focus:outline-none focus:text-blue-600 focus:ring-2 focus:ring-blue-500/50 rounded px-2 py-1"
+                ref={el => linksRef.current[0] = el}
+                onKeyDown={(e) => handleKeyDown(e, 0)}
+            >欢迎使用</a>
+            <a 
+                href="#" 
+                className="hover:text-blue-600 transition-colors focus:outline-none focus:text-blue-600 focus:ring-2 focus:ring-blue-500/50 rounded px-2 py-1"
+                ref={el => linksRef.current[1] = el}
+                onKeyDown={(e) => handleKeyDown(e, 1)}
+            >保持低调</a>
+            <a 
+                href="https://cfkua.wokaotianshi.eu.org/https://raw.githubusercontent.com/wokaotianshi123/streamhub/refs/heads/main/steamhub4.0latest.apk" 
+                className="hover:text-blue-600 transition-colors focus:outline-none focus:text-blue-600 focus:ring-2 focus:ring-blue-500/50 rounded px-2 py-1"
+                ref={el => linksRef.current[2] = el}
+                onKeyDown={(e) => handleKeyDown(e, 2)}
+            >下载apk</a>
           </div>
         )}
 
