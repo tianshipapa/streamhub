@@ -945,8 +945,8 @@ const Player: React.FC<PlayerProps> = ({ setView, movieId, currentSource, source
         try {
             let artReady = await waitForGlobal('Artplayer', 5000);
             let hlsReady = await waitForGlobal('Hls', 5000);
-            if (!artReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.3.0/artplayer.js"); artReady = await waitForGlobal('Artplayer', 10000); }
-            if (!hlsReady) { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.20/hls.min.js"); hlsReady = await waitForGlobal('Hls', 10000); }
+            if (!artReady) { await loadScript("/js/artplayer.js"); artReady = await waitForGlobal('Artplayer', 10000); }
+            if (!hlsReady) { await loadScript("/js/hls.min.js"); hlsReady = await waitForGlobal('Hls', 10000); }
 
             if (!isMounted) return;
             if (!window.Artplayer) throw new Error("Artplayer load failed");
