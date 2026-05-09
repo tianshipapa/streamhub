@@ -13,7 +13,7 @@ const DOUBAN_PROXY_KEY = 'streamhub_douban_proxy_url';
 const SKIP_CONFIG_PREFIX = 'streamhub_skip_config_';
 const MAX_HISTORY_ITEMS = 50;
 
-export const DEFAULT_DOUBAN_PROXY = 'https://api.yangzirui.com/proxy/';
+export const DEFAULT_DOUBAN_PROXY = 'https://cfkua.wokaotianshi.eu.org/';
 
 // --- Skip Intro/Outro Types ---
 export interface SkipConfig {

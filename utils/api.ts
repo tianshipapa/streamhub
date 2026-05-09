@@ -347,12 +347,6 @@ const DEFAULT_SOURCES = [
     "useInSearchAll": true
   },
   {
-    "key": "百万资源网采集接口",
-    "name": "百万资源网采集接口",
-    "api": "https://cfkua.wokaotianshi.eu.org/https://api.bwzyz.com/api.php/provide/vod/at/xml",
-    "useInSearchAll": true
-  },
-  {
     "key": "鸭鸭（丫丫）资源网采集接口",
     "name": "鸭鸭（丫丫）资源网采集接口",
     "api": "https://cfkua.wokaotianshi.eu.org/https://cj.yayazy.net/api.php/provide/vod/at/xml",
